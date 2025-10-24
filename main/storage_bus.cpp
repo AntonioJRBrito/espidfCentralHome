@@ -16,10 +16,7 @@ esp_err_t StorageBus::init(){
     if(!configCentral){
         ESP_LOGW(TAG,"PSRAM indisponível, alocando em DRAM");
         configCentral=static_cast<config*>(heap_caps_malloc(sizeof(config),MALLOC_CAP_8BIT));
-        if(!configCentral){
-            ESP_LOGE(TAG,"Falha total de alocação");
-            return ESP_ERR_NO_MEM;
-        }
+        if(!configCentral){ESP_LOGE(TAG,"Falha total de alocação");return ESP_ERR_NO_MEM;}
     }
     memset(configCentral,0,sizeof(config));
     snprintf(configCentral->APssid,sizeof(configCentral->APssid),"CTR_%s",macShort);

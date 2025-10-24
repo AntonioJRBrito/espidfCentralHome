@@ -7,8 +7,8 @@
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_LOGI("MAIN", "Teste inicial do EventBus");
-    EventBus::init();
     StorageBus::init();
+    EventBus::init();
     int counter = 1;
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(2000));

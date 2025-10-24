@@ -79,6 +79,5 @@ esp_err_t EventBus::post(EventDomain domain, EventId id, void* data, size_t size
 // Handler event
 esp_err_t EventBus::regHandler(EventDomain domain, esp_event_handler_t handler, void* arg){
     auto &info = domainMap.at(domain);
-    return esp_event_handler_register_with(
-        info.loop, info.base, ESP_EVENT_ANY_ID, handler, arg);
+    return esp_event_handler_register_with(info.loop, info.base, ESP_EVENT_ANY_ID, handler, arg);
 }
