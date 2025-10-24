@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "main.cpp"
         "event_bus.cpp"
+        "storage_bus.cpp"
        
     INCLUDE_DIRS
         "."
