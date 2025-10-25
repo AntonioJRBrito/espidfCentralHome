@@ -28,7 +28,7 @@ static std::unordered_map<EventDomain, DomainInfo> domainMap;
 esp_err_t EventBus::init() {
     esp_event_loop_args_t args = {
         .queue_size = 8,
-        .task_name = nullptr,
+        .task_name = "event_loop_priority",
         .task_priority = 8,
         .task_stack_size = 4096,
         .task_core_id = tskNO_AFFINITY
@@ -38,18 +38,21 @@ esp_err_t EventBus::init() {
     if (ret != ESP_OK) return ret;
     ESP_LOGI(TAG, "Loop priority criado");
     //loop_fast
+    args.task_name = "event_loop_fast";
     args.task_core_id = 0;
     args.task_priority = 5;
     ret = esp_event_loop_create(&args, &loopFast);
     if (ret != ESP_OK) return ret;
     ESP_LOGI(TAG, "Loop fast criado");
     //loop_medium
+    args.task_name = "event_loop_medium";
     args.task_core_id = 1;
     args.task_priority = 3;
     ret = esp_event_loop_create(&args, &loopMedium);
     if (ret != ESP_OK) return ret;
     ESP_LOGI(TAG, "Loop medium criado");
     //loop_slow
+    args.task_name = "event_loop_slow";
     args.task_priority = 1;
     ret = esp_event_loop_create(&args, &loopSlow);
     if (ret != ESP_OK) return ret;
@@ -72,7 +75,7 @@ esp_err_t EventBus::init() {
 }
 // Post event
 esp_err_t EventBus::post(EventDomain domain, EventId id, void* data, size_t size, TickType_t timeout){
-    ESP_LOGI(TAG, "post domain=%d id=%d data=%s size=%u", (int)domain, (int)id, data, (unsigned)size);
+    ESP_LOGI(TAG, "post domain=%d id=%d", (int)domain, (int)id);
     auto &info = domainMap.at(domain);
     return esp_event_post_to(info.loop, info.base, static_cast<int32_t>(id), data, size, timeout);
 }
