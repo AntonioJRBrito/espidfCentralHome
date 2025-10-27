@@ -4,6 +4,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstring>
+#include "esp_wifi.h"
+#include "esp_mac.h"
+#include "esp_heap_caps.h"
+
 struct config{char STAssid[51];char STApassword[21];char CTRname[21];char CTRtoken[51];char CTRpassword[21];uint8_t CTRflag;};
 namespace StorageBus {
     extern config* configCentral;

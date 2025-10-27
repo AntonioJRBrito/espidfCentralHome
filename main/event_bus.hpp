@@ -13,7 +13,7 @@ enum class EventId : int32_t {
     DNS_READY,
     SOC_READY,
     WEB_READY,
-    EDP_READY,
+    UDP_READY,
     BRK_READY,
     MQT_READY,
     MTT_READY,

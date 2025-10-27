@@ -5,6 +5,9 @@ idf_component_register(
         "storage_bus.cpp"
         "net_manager.cpp"
         "sync_manager.cpp"
+        "dns_manager.cpp"
+        "storage_manager.cpp"
+        "socket_manager.cpp"
        
     INCLUDE_DIRS
         "."
