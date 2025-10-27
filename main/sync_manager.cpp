@@ -72,6 +72,7 @@ namespace SyncManager
         {
             ESP_LOGI(TAG, "→ Todos os domínios prontos: publicando READY_ALL");
             EventBus::post(EventDomain::NETWORK, EventId::READY_ALL);
+            deinit();
         }
     }
     esp_err_t init()
@@ -81,6 +82,16 @@ namespace SyncManager
         {
             EventBus::regHandler(static_cast<EventDomain>(d), &onReady, reinterpret_cast<void*>(static_cast<uintptr_t>(d)));
         }
+        return ESP_OK;
+    }
+    esp_err_t deinit()
+    {
+        ESP_LOGW(TAG, "Encerrando SyncManager e removendo handlers...");
+        for (uint8_t d = 0; d < DOMAIN_COUNT; ++d)
+        {
+            EventBus::unregHandler(static_cast<EventDomain>(d), &onReady);
+        }
+        ESP_LOGI(TAG, "SyncManager fora das filas de evento");
         return ESP_OK;
     }
 }

@@ -7,4 +7,5 @@
 namespace SyncManager
 {
     esp_err_t init();
+    esp_err_t deinit();
 }

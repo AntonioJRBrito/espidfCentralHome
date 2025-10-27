@@ -13,15 +13,11 @@ namespace NetManager
             case EventId::READY_ALL:
                 ESP_LOGI(TAG, "[EventBus] Recebido READY_ALL - NetManager permanece ativo");
                 break;
-            case EventId::STO_READY:
-                ESP_LOGI(TAG, "[EventBus] Storage pronto - futura leitura de credenciais");
-                break;
             default:
-                ESP_LOGI(TAG, "[EventBus] Evento não tratado: base=%s id=%ld",base ? (const char*)base : "null", id);
                 break;
         }
     }
-    static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void*)
+    static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data)
     {
         if (base == WIFI_EVENT)
         {
@@ -47,8 +43,23 @@ namespace NetManager
                     ESP_LOGW(TAG, "STA desconectada");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STADISCONNECTED);
                     break;
+                case WIFI_EVENT_AP_STACONNECTED:
+                {
+                    wifi_event_ap_staconnected_t* info = (wifi_event_ap_staconnected_t*)data;
+                    uint32_t aid = info->aid;
+                    ESP_LOGI(TAG, "Cliente conectado (AID=%u)", aid);
+                    EventBus::post(EventDomain::NETWORK, EventId::NET_APCLICONNECTED,&aid,sizeof(aid));
+                    break;
+                }
+                case WIFI_EVENT_AP_STADISCONNECTED:
+                {
+                    wifi_event_ap_staconnected_t* info = (wifi_event_ap_staconnected_t*)data;
+                    uint32_t aid = info->aid;
+                    ESP_LOGI(TAG, "Cliente desconectado (AID=%u)", aid);
+                    EventBus::post(EventDomain::NETWORK, EventId::NET_APCLIDISCONNECTED,&aid,sizeof(aid));
+                    break;
+                }
                 default:
-                    ESP_LOGI(TAG, "WIFI_EVENT não tratado (id=%ld)", id);
                     break;
             }
         }
@@ -57,9 +68,9 @@ namespace NetManager
             switch (id)
             {
                 case IP_EVENT_AP_STAIPASSIGNED:
-                    ESP_LOGI(TAG, "Cliente conectado ao AP");
-                    EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
-                    break;
+                    // ESP_LOGI(TAG, "Cliente conectado ao AP");
+                    // EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
+                    // break;
                 default:
                     break;
             }
