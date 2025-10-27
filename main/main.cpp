@@ -13,6 +13,11 @@
 #include "broker_manager.hpp"
 #include "mqtt_manager.hpp"
 #include "matter_manager.hpp"
+#include "automation_manager.hpp"
+#include "ota_manager.hpp"
+#include "device_manager.hpp"
+#include "ble_manager.hpp"
+#include "rtc_manager.hpp"
 
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -29,6 +34,11 @@ extern "C" void app_main(void) {
     BrokerManager::init();
     MqttManager::init();
     MatterManager::init();
+    AutomationManager::init();
+    OtaManager::init();
+    DeviceManager::init();
+    BleManager::init();
+    RtcManager::init();
     // int counter = 1;
     // while (true) {
     //     vTaskDelay(pdMS_TO_TICKS(2000));

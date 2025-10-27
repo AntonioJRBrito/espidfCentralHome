@@ -13,6 +13,11 @@ idf_component_register(
         "broker_manager.cpp"
         "mqtt_manager.cpp"
         "matter_manager.cpp"
+        "automation_manager.cpp"
+        "ota_manager.cpp"
+        "device_manager.cpp"
+        "ble_manager.cpp"
+        "rtc_manager.cpp"
        
     INCLUDE_DIRS
         "."
