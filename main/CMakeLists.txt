@@ -11,6 +11,8 @@ idf_component_register(
         "web_manager.cpp"
         "udp_manager.cpp"
         "broker_manager.cpp"
+        "mqtt_manager.cpp"
+        "matter_manager.cpp"
        
     INCLUDE_DIRS
         "."

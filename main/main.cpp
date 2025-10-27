@@ -11,6 +11,8 @@
 #include "web_manager.hpp"
 #include "udp_manager.hpp"
 #include "broker_manager.hpp"
+#include "mqtt_manager.hpp"
+#include "matter_manager.hpp"
 
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -25,6 +27,8 @@ extern "C" void app_main(void) {
     WebManager::init();
     UdpManager::init();
     BrokerManager::init();
+    MqttManager::init();
+    MatterManager::init();
     // int counter = 1;
     // while (true) {
     //     vTaskDelay(pdMS_TO_TICKS(2000));
