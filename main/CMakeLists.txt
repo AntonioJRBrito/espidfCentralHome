@@ -8,12 +8,15 @@ idf_component_register(
         "dns_manager.cpp"
         "storage_manager.cpp"
         "socket_manager.cpp"
+        "web_manager.cpp"
+        "udp_manager.cpp"
+        "broker_manager.cpp"
        
     INCLUDE_DIRS
         "."
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE
-    -std=gnu++17
+    -std=gnu++20
     -Wno-return-type
 )

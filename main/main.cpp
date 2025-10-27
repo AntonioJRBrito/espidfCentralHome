@@ -8,6 +8,9 @@
 #include "dns_manager.hpp"
 #include "storage_manager.hpp"
 #include "socket_manager.hpp"
+#include "web_manager.hpp"
+#include "udp_manager.hpp"
+#include "broker_manager.hpp"
 
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -19,6 +22,9 @@ extern "C" void app_main(void) {
     DnsManager::init();
     StorageManager::init();
     SocketManager::init();
+    WebManager::init();
+    UdpManager::init();
+    BrokerManager::init();
     // int counter = 1;
     // while (true) {
     //     vTaskDelay(pdMS_TO_TICKS(2000));
