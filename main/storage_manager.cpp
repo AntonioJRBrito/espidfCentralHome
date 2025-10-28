@@ -1,63 +1,53 @@
 #include "storage_manager.hpp"
+#include "storage.hpp"
 
 static const char* TAG = "StorageManager";
-static std::unordered_map<std::string, StorageManager::Page> pageMap;
 
-using namespace StorageManager;
-
-static std::string mimeType(const std::string& path) {
-    if (path.find(".html") != std::string::npos) return "text/html";
-    if (path.find(".css")  != std::string::npos) return "text/css";
-    if (path.find(".js")   != std::string::npos) return "application/javascript";
-    if (path.find("logomarca") != std::string::npos) return "image/png";
-    return "text/plain";
-}
-
-esp_err_t StorageManager::init() {
-    ESP_LOGI(TAG, "Inicializando LittleFS...");
-    esp_vfs_littlefs_conf_t conf = {
-        .base_path = "/littlefs",
-        .partition_label = "littlefs",
-        .format_if_mount_failed = false,
-        .dont_mount = false,
-    };
-    ESP_ERROR_CHECK(esp_vfs_littlefs_register(&conf));
-
-    const char* files[] = {
-        "/littlefs/index.html", "/littlefs/central.html", "/littlefs/agenda.html",
-        "/littlefs/automacao.html", "/littlefs/atualizar.html",
-        "/littlefs/css/bootstrap.min.css", "/littlefs/css/igra.css",
-        "/littlefs/js/messages.js", "/littlefs/js/icons.js",
-        "/littlefs/image/logomarca"
-    };
-    ESP_LOGI(TAG, "Carregando páginas p/ PSRAM...");
-
-    for (auto f : files) {
-        FILE* fp = fopen(f, "rb");
-        if (!fp) { ESP_LOGW(TAG, "Arquivo %s não encontrado", f); continue; }
-
-        fseek(fp, 0, SEEK_END);
-        size_t sz = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-
-        uint8_t* buf = (uint8_t*)heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
-        if (!buf) { ESP_LOGE(TAG, "PSRAM insuficiente p/ %s", f); fclose(fp); continue; }
-
-        fread(buf, 1, sz, fp);
-        fclose(fp);
-
-        std::string key = std::string(f).erase(0, 7);  // tira "/spiffs"
-        pageMap[key] = { buf, sz, mimeType(f) };
-        ESP_LOGI(TAG, "→ %s (%u bytes)", key.c_str(), (unsigned)sz);
+namespace StorageManager {
+    static std::unordered_map<std::string, Page> pageMap;
+    void registerPage(const char* uri, const Page& p) {
+        pageMap[uri] = p;
+        ESP_LOGI(TAG, "Página registrada: %s (%zu bytes, %s)", uri, p.size, p.mime.c_str());
     }
-
-    EventBus::post(EventDomain::STORAGE, EventId::STO_READY);
-    ESP_LOGI(TAG, "→ STO_READY publicado");
-    return ESP_OK;
+    const Page* getPage(const char* uri) {
+        auto it = pageMap.find(uri);
+        return (it != pageMap.end()) ? &it->second : nullptr;
+    }
+    void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
+        EventId evt = static_cast<EventId>(id);
+        if (evt == EventId::NET_IFOK) {
+            ESP_LOGI(TAG, "Network IFOK recebido → checar SSID/password armazenados...");
+            // Aqui entrará a recuperação de SSID/senha se existirem
+            // Storage::getWifiCredentials(...)
+        }
+    }
+    void onStorageEvent(void*, esp_event_base_t, int32_t id, void*) {
+        EventId evt = static_cast<EventId>(id);
+        switch (evt) {
+            case EventId::STO_QUERY:
+                ESP_LOGI(TAG, "Recebido STO_QUERY");
+                break;
+            case EventId::STO_UPDATE_REQ:
+                ESP_LOGI(TAG, "Recebido STO_UPDATE_REQ");
+                break;
+            default:
+                break;
+        }
+    }
+    esp_err_t init() {
+        ESP_LOGI(TAG, "Inicializando Storage Manager...");
+        EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
+        EventBus::regHandler(EventDomain::STORAGE, &onStorageEvent, nullptr);
+        ESP_LOGI(TAG, "Montando Storage físico (LittleFS)...");
+        esp_err_t ret = Storage::init();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Falha ao inicializar Storage físico");
+            return ret;
+        }
+        EventBus::post(EventDomain::STORAGE, EventId::STO_READY);
+        ESP_LOGI(TAG, "→ STO_READY publicado");
+        return ESP_OK;
+    }
 }
 
-const Page* StorageManager::get(const char* uri) {
-    auto it = pageMap.find(uri);
-    if (it != pageMap.end()) return &it->second;
-    return nullptr;
-}
+/// acessar cia: const Page* p = StorageManager::getPage("/index.html");

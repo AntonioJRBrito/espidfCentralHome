@@ -2,6 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "event_bus.hpp"
+#include "global_config.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_netif.h"

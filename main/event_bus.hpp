@@ -21,7 +21,7 @@ enum class EventId : int32_t {
     MTT_READY,
     AUT_READY,
     OTA_READY,
-    STO_READY,
+    STO_READY,STO_QUERY,STO_UPDATE_REQ,
     BLE_READY
 };
 struct EventPayload {void* data; size_t size;};

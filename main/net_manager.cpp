@@ -91,15 +91,12 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
         uint8_t mac[6];
         esp_read_mac(mac, ESP_MAC_WIFI_STA);
-        char ssid[18];
-        sprintf(ssid,"CTR_%02X%02X%02X%02X%02X%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
         wifi_config_t ap_cfg{};
-        strncpy((char*)ap_cfg.ap.ssid, ssid, sizeof(ap_cfg.ap.ssid));
-        ap_cfg.ap.ssid_len = strlen(ssid);
+        strncpy((char*)ap_cfg.ap.ssid,GlobalConfigData::cfg->hostname.c_str(),sizeof(ap_cfg.ap.ssid));
+        ap_cfg.ap.ssid_len = strlen((char*)ap_cfg.ap.ssid);
         ap_cfg.ap.channel = 1;
         ap_cfg.ap.max_connection = 4;
         ap_cfg.ap.authmode = WIFI_AUTH_OPEN;
-        ESP_LOGI(TAG, "Iniciando AP SSID=%s", ssid);
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
         ESP_ERROR_CHECK(esp_wifi_start());

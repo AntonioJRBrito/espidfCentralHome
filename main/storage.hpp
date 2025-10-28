@@ -1,15 +1,14 @@
 #pragma once
-#include "esp_event.h"
+#include "storage_manager.hpp"
+#include "global_config.hpp"
+#include "esp_err.h"
+#include "esp_littlefs.h"
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include <cstring>
-#include "esp_wifi.h"
-#include "esp_mac.h"
+#include <string>
 #include "esp_heap_caps.h"
+#include <stdio.h>
 
-struct config{char STAssid[51];char STApassword[21];char CTRname[21];char CTRtoken[51];char CTRpassword[21];uint8_t CTRflag;};
 namespace Storage {
-    extern config* configCentral;
     esp_err_t init();
+    static void loadFileToPsram(const char* path, const char* key, const char* mime);
 }

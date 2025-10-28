@@ -18,10 +18,12 @@
 #include "device_manager.hpp"
 #include "ble_manager.hpp"
 #include "rtc_manager.hpp"
+#include "global_config.hpp"
 
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_LOGI("MAIN", "Teste inicial do EventBus");
+    GlobalConfigData::init();
     EventBus::init();
     SyncManager::init();
     NetManager::init();
