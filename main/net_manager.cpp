@@ -7,19 +7,14 @@ namespace NetManager
     static esp_netif_t* netif_ap = nullptr;
     static void onEventBus(void*,esp_event_base_t base,int32_t id,void*)
     {
-        EventId evt = static_cast<EventId>(id);
-        switch (evt)
-        {
-            case EventId::READY_ALL:
-                ESP_LOGI(TAG, "[EventBus] Recebido READY_ALL - NetManager permanece ativo");
-                break;
-            default:
-                break;
+        if(static_cast<EventId>(id)==EventId::READY_ALL){
+            EventBus::post(EventDomain::NETWORK, EventId::NET_IFOK);
+            ESP_LOGI(TAG, "NET_IFOK enviado");
         }
     }
     static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data)
     {
-        if (base == WIFI_EVENT)
+        if(base==WIFI_EVENT)
         {
             switch (id)
             {
@@ -63,7 +58,7 @@ namespace NetManager
                     break;
             }
         }
-        else if (base == IP_EVENT)
+        else if(base==IP_EVENT)
         {
             switch (id)
             {
@@ -76,7 +71,6 @@ namespace NetManager
             }
         }
     }
-
     static esp_err_t startAP()
     {
         esp_err_t ret = nvs_flash_init();
@@ -111,7 +105,6 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_wifi_start());
         return ESP_OK;
     }
-
     esp_err_t init()
     {
         esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);

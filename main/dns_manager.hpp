@@ -1,9 +1,11 @@
 #pragma once
 #include "esp_err.h"
-#include "esp_log.h"
 #include "event_bus.hpp"
-#include "storage_bus.hpp"
-
+#include "esp_log.h"
+#include "esp_netif.h"
+#include "lwip/sockets.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 namespace DnsManager {
     esp_err_t init();
 }
