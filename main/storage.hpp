@@ -9,7 +9,7 @@
 #include "esp_heap_caps.h"
 
 struct config{char STAssid[51];char STApassword[21];char CTRname[21];char CTRtoken[51];char CTRpassword[21];uint8_t CTRflag;};
-namespace StorageBus {
+namespace Storage {
     extern config* configCentral;
     esp_err_t init();
 }

@@ -1,14 +1,5 @@
 #include "storage_manager.hpp"
 
-#include "storage_manager.hpp"
-#include "esp_log.h"
-#include "esp_vfs_littlefs.h"
-#include "esp_heap_caps.h"
-#include "event_bus.hpp"
-#include <sys/stat.h>
-#include <cstdio>
-#include <cstring>
-
 static const char* TAG = "StorageManager";
 static std::unordered_map<std::string, StorageManager::Page> pageMap;
 
@@ -18,8 +9,6 @@ static std::string mimeType(const std::string& path) {
     if (path.find(".html") != std::string::npos) return "text/html";
     if (path.find(".css")  != std::string::npos) return "text/css";
     if (path.find(".js")   != std::string::npos) return "application/javascript";
-    if (path.find(".png")  != std::string::npos) return "image/png";
-    if (path.find(".jpg")  != std::string::npos) return "image/jpeg";
     if (path.find("logomarca") != std::string::npos) return "image/png";
     return "text/plain";
 }
@@ -27,7 +16,7 @@ static std::string mimeType(const std::string& path) {
 esp_err_t StorageManager::init() {
     ESP_LOGI(TAG, "Inicializando LittleFS...");
     esp_vfs_littlefs_conf_t conf = {
-        .base_path = "/spiffs",
+        .base_path = "/littlefs",
         .partition_label = "littlefs",
         .format_if_mount_failed = false,
         .dont_mount = false,
@@ -35,11 +24,11 @@ esp_err_t StorageManager::init() {
     ESP_ERROR_CHECK(esp_vfs_littlefs_register(&conf));
 
     const char* files[] = {
-        "/spiffs/index.html", "/spiffs/central.html", "/spiffs/agenda.html",
-        "/spiffs/automacao.html", "/spiffs/atualizar.html",
-        "/spiffs/css/bootstrap.min.css", "/spiffs/css/igra.css",
-        "/spiffs/js/messages.js", "/spiffs/js/icons.js",
-        "/spiffs/image/logomarca"
+        "/littlefs/index.html", "/littlefs/central.html", "/littlefs/agenda.html",
+        "/littlefs/automacao.html", "/littlefs/atualizar.html",
+        "/littlefs/css/bootstrap.min.css", "/littlefs/css/igra.css",
+        "/littlefs/js/messages.js", "/littlefs/js/icons.js",
+        "/littlefs/image/logomarca"
     };
     ESP_LOGI(TAG, "Carregando páginas p/ PSRAM...");
 

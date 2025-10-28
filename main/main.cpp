@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "event_bus.hpp"
-#include "storage_bus.hpp"
+#include "storage.hpp"
 #include "sync_manager.hpp"
 #include "net_manager.hpp"
 #include "dns_manager.hpp"
@@ -22,7 +22,6 @@
 extern "C" void app_main(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_LOGI("MAIN", "Teste inicial do EventBus");
-    StorageBus::init();
     EventBus::init();
     SyncManager::init();
     NetManager::init();
