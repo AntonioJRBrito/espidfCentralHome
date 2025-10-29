@@ -3,7 +3,6 @@
 ESP_EVENT_DEFINE_BASE(NETWORK_BASE);
 ESP_EVENT_DEFINE_BASE(RTC_BASE);
 ESP_EVENT_DEFINE_BASE(DEVICE_BASE);
-ESP_EVENT_DEFINE_BASE(DNS_BASE);
 ESP_EVENT_DEFINE_BASE(SOCKET_BASE);
 ESP_EVENT_DEFINE_BASE(WEB_BASE);
 ESP_EVENT_DEFINE_BASE(UDP_BASE);
@@ -60,7 +59,6 @@ namespace EventBus{
         domainMap[EventDomain::NETWORK] = {NETWORK_BASE,loopPriority};
         domainMap[EventDomain::RTC] = {RTC_BASE,loopPriority};
         domainMap[EventDomain::DEVICE] = {DEVICE_BASE,loopFast};
-        domainMap[EventDomain::DNS] = {DNS_BASE,loopFast};
         domainMap[EventDomain::SOCKET] = {SOCKET_BASE,loopMedium};
         domainMap[EventDomain::WEB] = {WEB_BASE,loopMedium};
         domainMap[EventDomain::UDP] = {UDP_BASE,loopMedium};

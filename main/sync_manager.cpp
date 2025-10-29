@@ -11,7 +11,7 @@ namespace SyncManager
     constexpr uint32_t BIT_NET = 1u << 0;
     constexpr uint32_t BIT_RTC = 1u << 1;
     constexpr uint32_t BIT_DEV = 1u << 2;
-    constexpr uint32_t BIT_DNS = 1u << 3;
+    constexpr uint32_t BIT_BLE = 1u << 3;
     constexpr uint32_t BIT_SOC = 1u << 4;
     constexpr uint32_t BIT_WEB = 1u << 5;
     constexpr uint32_t BIT_UDP = 1u << 6;
@@ -21,10 +21,8 @@ namespace SyncManager
     constexpr uint32_t BIT_AUT = 1u << 10;
     constexpr uint32_t BIT_OTA = 1u << 11;
     constexpr uint32_t BIT_STO = 1u << 12;
-    constexpr uint32_t BIT_BLE = 1u << 13;
     static constexpr uint32_t ALL_MASK =
-        BIT_NET | BIT_RTC | BIT_DEV | BIT_DNS | BIT_SOC | BIT_WEB | BIT_UDP |
-        BIT_BRK | BIT_MQT | BIT_MTT | BIT_AUT | BIT_OTA | BIT_STO | BIT_BLE;
+        BIT_NET | BIT_RTC | BIT_DEV | BIT_SOC | BIT_WEB | BIT_UDP | BIT_BRK | BIT_MQT | BIT_MTT | BIT_AUT | BIT_OTA | BIT_STO | BIT_BLE;
     static uint32_t ready_mask = 0;
     static void onReady(void*, esp_event_base_t base, int32_t id, void* arg)
     {
@@ -35,7 +33,6 @@ namespace SyncManager
         if (eventId == EventId::NET_READY  ||
             eventId == EventId::RTC_READY  ||
             eventId == EventId::DEV_READY  ||
-            eventId == EventId::DNS_READY  ||
             eventId == EventId::SOC_READY  ||
             eventId == EventId::WEB_READY  ||
             eventId == EventId::UDP_READY  ||
@@ -52,7 +49,6 @@ namespace SyncManager
                 case EventId::NET_READY:  ready_mask |= BIT_NET; break;
                 case EventId::RTC_READY:  ready_mask |= BIT_RTC; break;
                 case EventId::DEV_READY:  ready_mask |= BIT_DEV; break;
-                case EventId::DNS_READY:  ready_mask |= BIT_DNS; break;
                 case EventId::SOC_READY:  ready_mask |= BIT_SOC; break;
                 case EventId::WEB_READY:  ready_mask |= BIT_WEB; break;
                 case EventId::UDP_READY:  ready_mask |= BIT_UDP; break;

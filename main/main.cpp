@@ -5,7 +5,6 @@
 #include "storage.hpp"
 #include "sync_manager.hpp"
 #include "net_manager.hpp"
-#include "dns_manager.hpp"
 #include "storage_manager.hpp"
 #include "socket_manager.hpp"
 #include "web_manager.hpp"
@@ -27,7 +26,6 @@ extern "C" void app_main(void) {
     EventBus::init();
     SyncManager::init();
     NetManager::init();
-    DnsManager::init();
     StorageManager::init();
     SocketManager::init();
     WebManager::init();

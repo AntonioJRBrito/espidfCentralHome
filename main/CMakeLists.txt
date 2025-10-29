@@ -4,7 +4,6 @@ idf_component_register(
         "event_bus.cpp"
         "net_manager.cpp"
         "sync_manager.cpp"
-        "dns_manager.cpp"
         "storage_manager.cpp"
         "storage.cpp"
         "socket_manager.cpp"

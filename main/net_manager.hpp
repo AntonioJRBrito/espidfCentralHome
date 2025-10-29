@@ -10,6 +10,7 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "esp_mac.h"
+#include "dns_server.h"
 
 namespace NetManager
 {
