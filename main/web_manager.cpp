@@ -3,28 +3,21 @@
 static const char* TAG = "WebManager";
 
 namespace WebManager {
-
     static httpd_handle_t server = nullptr;
-
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
-    // Retorna ESP_OK se serviu, ESP_ERR_NOT_FOUND se não encontrou na PSRAM.
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
-        // Remove a barra inicial se presente (ex: "/css/style.css" -> "css/style.css")
         if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
-
         const Page* page = StorageManager::getPage(uri.c_str());
         if (!page) {
             ESP_LOGW(TAG, "Arquivo estático não encontrado na PSRAM: %s", uri.c_str());
-            return ESP_ERR_NOT_FOUND; // Indica que não encontrou, para o chamador decidir o que fazer (404 ou fallback)
+            return ESP_ERR_NOT_FOUND;
         }
-
         httpd_resp_set_type(req, page->mime.c_str());
         httpd_resp_send(req, (const char*)page->data, page->size);
         ESP_LOGI(TAG, "Servido (PSRAM): %s (%zu bytes)", uri.c_str(), page->size);
         return ESP_OK;
     }
-
     // --- Handler para a raiz "/" (serve index.html) ---
     static esp_err_t root_handler(httpd_req_t* req) {
         const Page* page = StorageManager::getPage("index.html");
@@ -38,20 +31,14 @@ namespace WebManager {
         ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
         return ESP_OK;
     }
-
     // --- Handlers para redirecionamento de captive portal ---
-    // Redireciona requisições como /generate_204 para a raiz.
     static esp_err_t redirect_to_root_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "Redirecionando %s para /", req->uri);
-        httpd_resp_set_status(req, "302 Found"); // Código de redirecionamento
-        httpd_resp_set_hdr(req, "Location", "/"); // Nova localização
-        httpd_resp_send(req, NULL, 0); // Envia resposta vazia
+        httpd_resp_set_status(req, "302 Found");
+        httpd_resp_set_hdr(req, "Location", "/");
+        httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
-
-    // --- Handler de fallback para 404 (Not Found) e redirecionamento final ---
-    // Este handler é o ÚLTIMO a ser registrado e só é chamado se nenhuma outra URI corresponder.
-    // Ele não tenta servir arquivos estáticos, apenas redireciona.
     static esp_err_t not_found_handler(httpd_req_t* req) {
         ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
@@ -59,18 +46,12 @@ namespace WebManager {
         httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
-
-    // --- Placeholder Handlers para APIs e UPnP (implementação futura) ---
-    // Estes handlers devem ser preenchidos com a lógica específica de cada API.
-    // Por enquanto, apenas logam e enviam uma resposta simples.
-
     static esp_err_t get_info_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "GET /GET/info (POST)");
         // TODO: Implementar lógica para obter informações (ex: de GlobalConfigData)
         httpd_resp_sendstr(req, "GET info data placeholder");
         return ESP_OK;
     }
-
     static esp_err_t set_info_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /SET/info");
         // TODO: Implementar lógica para definir informações (ler corpo da requisição)
@@ -178,7 +159,6 @@ namespace WebManager {
         httpd_register_uri_handler(server, &uri_central);
 
         // 2. Rotas de redirecionamento para detecção de captive portal
-        // ESTES SÃO OS HANDLERS QUE ENVIAM O 302 FOUND ESPERADO PELO CELULAR
         httpd_uri_t uri_gen204  = { .uri="/generate_204",      .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
         httpd_uri_t uri_hotspot = { .uri="/hotspot-detect.html", .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
         httpd_uri_t uri_ncsi    = { .uri="/ncsi.txt",          .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
@@ -234,11 +214,8 @@ namespace WebManager {
         // Este handler só será chamado se nenhuma das URIs acima corresponder.
         httpd_uri_t uri_catch_all = { .uri="*", .method=(httpd_method_t)HTTP_ANY, .handler=not_found_handler, .user_ctx=nullptr };
         httpd_register_uri_handler(server, &uri_catch_all);
-
         ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
-
-    // --- Inicialização integrada com EventBus ---
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
         if (static_cast<EventId>(id)==EventId::NET_IFOK) {
             ESP_LOGI(TAG, "NET_IFOK → iniciando servidor HTTP");
@@ -246,7 +223,6 @@ namespace WebManager {
             EventBus::unregHandler(EventDomain::NETWORK, &onNetworkEvent);
         }
     }
-
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);

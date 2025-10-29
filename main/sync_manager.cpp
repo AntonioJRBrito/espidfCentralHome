@@ -24,9 +24,8 @@ namespace SyncManager
     static constexpr uint32_t ALL_MASK =
         BIT_NET | BIT_RTC | BIT_DEV | BIT_SOC | BIT_WEB | BIT_UDP | BIT_BRK | BIT_MQT | BIT_MTT | BIT_AUT | BIT_OTA | BIT_STO | BIT_BLE;
     static uint32_t ready_mask = 0;
-    static void onReady(void*, esp_event_base_t base, int32_t id, void* arg)
+    static void onReady(void* domain, esp_event_base_t base, int32_t id, void* arg)
     {
-        auto domain = static_cast<EventDomain>(reinterpret_cast<uintptr_t>(arg));
         EventId eventId = static_cast<EventId>(id);
         ESP_LOGI(TAG, "Recebido evento base=%s id=%d", base ? (const char*)base : "(null)", (int)id);
         if (eventId == EventId::READY_ALL) return;
@@ -62,7 +61,7 @@ namespace SyncManager
                 default:
                     return;
             }
-            ESP_LOGI(TAG, "Domínio %u pronto (mask=0x%08X)", static_cast<unsigned>(domain), ready_mask);
+            ESP_LOGI(TAG, "Domínio %d pronto (mask=0x%08X)", (int)domain, ready_mask);
         }
         if (ready_mask == ALL_MASK)
         {
