@@ -11,6 +11,7 @@ namespace WebManager {
         const Page* page = StorageManager::getPage(uri.c_str());
         if (!page) {
             ESP_LOGW(TAG, "Arquivo estático não encontrado na PSRAM: %s", uri.c_str());
+            httpd_resp_send_404(req);
             return ESP_ERR_NOT_FOUND;
         }
         httpd_resp_set_type(req, page->mime.c_str());
@@ -18,20 +19,7 @@ namespace WebManager {
         ESP_LOGI(TAG, "Servido (PSRAM): %s (%zu bytes)", uri.c_str(), page->size);
         return ESP_OK;
     }
-    // --- Handler para a raiz "/" (serve index.html) ---
-    static esp_err_t root_handler(httpd_req_t* req) {
-        const Page* page = StorageManager::getPage("index.html");
-        if (!page) {
-            ESP_LOGW(TAG, "index.html ausente na PSRAM para /");
-            httpd_resp_send_404(req);
-            return ESP_OK;
-        }
-        httpd_resp_set_type(req, "text/html");
-        httpd_resp_send(req, (const char*)page->data, page->size);
-        ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
-        return ESP_OK;
-    }
-    // --- Handlers para redirecionamento de captive portal ---
+    // --- Handler para redirecionamento de captive portal ---
     static esp_err_t redirect_to_root_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "Redirecionando %s para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
@@ -39,13 +27,7 @@ namespace WebManager {
         httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
-    static esp_err_t not_found_handler(httpd_req_t* req) {
-        ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
-        httpd_resp_set_status(req, "302 Found");
-        httpd_resp_set_hdr(req, "Location", "/");
-        httpd_resp_send(req, NULL, 0);
-        return ESP_OK;
-    }
+    // --- Handlers para configuração e controle da central ---
     static esp_err_t get_info_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "GET /GET/info (POST)");
         // TODO: Implementar lógica para obter informações (ex: de GlobalConfigData)
@@ -58,40 +40,46 @@ namespace WebManager {
         httpd_resp_sendstr(req, "SET info data placeholder");
         return ESP_OK;
     }
-
     static esp_err_t login_auth_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /GET/login");
         // TODO: Implementar lógica de autenticação
         httpd_resp_sendstr(req, "Login attempt placeholder");
         return ESP_OK;
     }
-
     static esp_err_t get_config_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "GET /GET/isok");
         // TODO: Implementar lógica para obter configuração
         httpd_resp_sendstr(req, "Config data placeholder");
         return ESP_OK;
     }
-
     static esp_err_t encerrar_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /encerrar");
-        // TODO: Implementar lógica de encerramento/reset (ex: esp_restart())
+        // TODO: Implementar lógica de encerramento a conexão (beacon)
         httpd_resp_sendstr(req, "Encerrar command received placeholder");
         return ESP_OK;
     }
-
+    // --- Handlers para HA ---
+    static esp_err_t upnp_description_handler(httpd_req_t* req) {
+        std::string uri = req->uri;
+        if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
+        const Page* page = StorageManager::getPage(uri.c_str());
+        if (!page) {
+            ESP_LOGW(TAG, "Arquivo não encontrado: %s", uri.c_str());
+            httpd_resp_send_404(req);
+            return ESP_ERR_NOT_FOUND;
+        }
+        std::string content((char*)page->data, page->size);
+        content=GlobalConfigData::replacePlaceholders(content,"$IP$",GlobalConfigData::cfg->ip);
+        content=GlobalConfigData::replacePlaceholders(content,"$ID$",GlobalConfigData::cfg->id);
+        httpd_resp_set_type(req, page->mime.c_str());
+        httpd_resp_send(req, content.c_str(), content.length());
+        ESP_LOGI(TAG,"%s", content.c_str());
+        return ESP_OK;
+    }
     static esp_err_t api_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /api");
         // TODO: Implementar lógica da API genérica
         httpd_resp_sendstr(req, "API endpoint hit placeholder");
-        return ESP_OK;
-    }
-
-    static esp_err_t upnp_description_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "GET /description.xml");
-        // TODO: Servir description.xml (pode estar na PSRAM ou ser gerado dinamicamente)
-        httpd_resp_set_type(req, "text/xml");
-        httpd_resp_sendstr(req, "<root><device><friendlyName>ESP32-S3 Central</friendlyName></device></root>");
         return ESP_OK;
     }
 
@@ -124,66 +112,70 @@ namespace WebManager {
         httpd_resp_sendstr(req, "<root><eventService>Event service info</eventService></root>");
         return ESP_OK;
     }
-
+    static esp_err_t not_found_handler(httpd_req_t* req) {
+        ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
+        httpd_resp_set_status(req, "302 Found");
+        httpd_resp_set_hdr(req, "Location", "/");
+        httpd_resp_send(req, NULL, 0);
+        return ESP_OK;
+    }
+    // --- Handler para a raiz "/" (serve index.html) ---
+    static esp_err_t root_handler(httpd_req_t* req) {
+        const Page* page = StorageManager::getPage("index.html");
+        if (!page) {
+            ESP_LOGW(TAG, "index.html ausente na PSRAM para /");
+            httpd_resp_send_404(req);
+            return ESP_OK;
+        }
+        httpd_resp_set_type(req, "text/html");
+        httpd_resp_send(req, (const char*)page->data, page->size);
+        ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
+        return ESP_OK;
+    }
+    static void registerUriHandler(const char* description,http_method method,esp_err_t (*handler)(httpd_req_t *r)){
+        httpd_uri_t uri_buf;
+        uri_buf.uri=description;
+        uri_buf.method=method;
+        uri_buf.handler=handler;
+        uri_buf.user_ctx=nullptr;
+        httpd_register_uri_handler(server, &uri_buf);
+    }
     // --- Inicializa servidor HTTP ---
     static void startServer() {
         if (server) { ESP_LOGW(TAG, "Servidor já em execução"); return; }
-
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.server_port = 80;
         config.lru_purge_enable = true;
-        // ESSENCIAL: Habilita o matching de URIs com wildcard
         config.uri_match_fn = httpd_uri_match_wildcard;
-        // AUMENTAR O NÚMERO DE SLOTS PARA HANDLERS
-        config.max_uri_handlers = 30; // Suficiente para 26 handlers + margem
-
+        config.max_uri_handlers = 30;
         if (httpd_start(&server, &config) != ESP_OK) {
             ESP_LOGE(TAG, "Falha ao iniciar servidor HTTP");
             return;
         }
-
-        // 1. Rotas estáticas principais (HTML)
-        // O root_handler é especial para "/"
-        httpd_uri_t uri_root      = { .uri="/",             .method=HTTP_GET, .handler=root_handler,            .user_ctx=nullptr };
-        httpd_uri_t uri_index     = { .uri="/index.html",   .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_agenda    = { .uri="/agenda.html",    .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_automacao = { .uri="/automacao.html", .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_atualizar = { .uri="/atualizar.html", .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_central   = { .uri="/central.html",   .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-
-        httpd_register_uri_handler(server, &uri_root);
-        httpd_register_uri_handler(server, &uri_index);
-        httpd_register_uri_handler(server, &uri_agenda);
-        httpd_register_uri_handler(server, &uri_automacao);
-        httpd_register_uri_handler(server, &uri_atualizar);
-        httpd_register_uri_handler(server, &uri_central);
-
-        // 2. Rotas de redirecionamento para detecção de captive portal
-        httpd_uri_t uri_gen204  = { .uri="/generate_204",      .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_hotspot = { .uri="/hotspot-detect.html", .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_ncsi    = { .uri="/ncsi.txt",          .method=HTTP_GET, .handler=redirect_to_root_handler, .user_ctx=nullptr };
-
-        httpd_register_uri_handler(server, &uri_gen204);
-        httpd_register_uri_handler(server, &uri_hotspot);
-        httpd_register_uri_handler(server, &uri_ncsi);
-
-        // 3. Rotas de API (POST/GET)
-        httpd_uri_t uri_get_info  = { .uri="/GET/info",  .method=HTTP_POST, .handler=get_info_handler,  .user_ctx=nullptr };
-        httpd_uri_t uri_set_info  = { .uri="/SET/info",  .method=HTTP_POST, .handler=set_info_handler,  .user_ctx=nullptr };
-        httpd_uri_t uri_get_login = { .uri="/GET/login", .method=HTTP_POST, .handler=login_auth_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_get_isok  = { .uri="/GET/isok",  .method=HTTP_GET,  .handler=get_config_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_encerrar  = { .uri="/encerrar",  .method=HTTP_POST, .handler=encerrar_handler,  .user_ctx=nullptr };
-        httpd_uri_t uri_api       = { .uri="/api",       .method=HTTP_POST, .handler=api_handler,       .user_ctx=nullptr };
-
-        httpd_register_uri_handler(server, &uri_get_info);
-        httpd_register_uri_handler(server, &uri_set_info);
-        httpd_register_uri_handler(server, &uri_get_login);
-        httpd_register_uri_handler(server, &uri_get_isok);
-        httpd_register_uri_handler(server, &uri_encerrar);
-        httpd_register_uri_handler(server, &uri_api);
-
+        // 1. Rotas estáticas principais (HTML/CSS/JS/IMG)
+        registerUriHandler("/",HTTP_GET,root_handler);
+        registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/agenda.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/automacao.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/atualizar.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/central.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/css/*",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/js/*",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/img/*",HTTP_GET,serve_static_file_handler);
+        // 2. Captive Portal
+        registerUriHandler("/generate_204",HTTP_GET,redirect_to_root_handler);
+        registerUriHandler("/hotspot-detect.html",HTTP_GET,redirect_to_root_handler);
+        registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
+        // 3. Rotas de configuração e controle da central
+        registerUriHandler("/GET/info",HTTP_POST,get_info_handler);
+        registerUriHandler("/SET/info",HTTP_POST,set_info_handler);
+        registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
+        registerUriHandler("/GET/isok",HTTP_GET,get_config_handler);
+        registerUriHandler("/encerrar",HTTP_POST,encerrar_handler);
         // 4. Rotas UPnP
-        httpd_uri_t uri_desc          = { .uri="/description.xml",          .method=HTTP_GET, .handler=upnp_description_handler, .user_ctx=nullptr };
+        registerUriHandler("/description.xml",HTTP_GET,upnp_description_handler);
+        registerUriHandler("/api",HTTP_POST,api_handler);
+
         httpd_uri_t uri_setup         = { .uri="/setup.xml",              .method=HTTP_GET, .handler=upnp_setup_handler,       .user_ctx=nullptr };
         httpd_uri_t uri_motion_control = { .uri="/upnp/control/motion1",   .method=(httpd_method_t)HTTP_ANY, .handler=upnp_sensor_response_handler, .user_ctx=nullptr };
         httpd_uri_t uri_basic_control  = { .uri="/upnp/control/basicevent1", .method=(httpd_method_t)HTTP_ANY, .handler=upnp_sensor_response_handler, .user_ctx=nullptr };
@@ -191,29 +183,14 @@ namespace WebManager {
         httpd_uri_t uri_basic_event    = { .uri="/upnp/event/basicevent1", .method=(httpd_method_t)HTTP_ANY, .handler=upnp_subscribe_handler,     .user_ctx=nullptr };
         httpd_uri_t uri_event_service  = { .uri="/eventservice.xml",       .method=HTTP_GET, .handler=upnp_event_service_handler, .user_ctx=nullptr };
 
-        httpd_register_uri_handler(server, &uri_desc);
         httpd_register_uri_handler(server, &uri_setup);
         httpd_register_uri_handler(server, &uri_motion_control);
         httpd_register_uri_handler(server, &uri_basic_control);
         httpd_register_uri_handler(server, &uri_motion_event);
         httpd_register_uri_handler(server, &uri_basic_event);
         httpd_register_uri_handler(server, &uri_event_service);
-
-        // 5. Handlers para recursos estáticos (CSS, JS, IMG) usando wildcard de prefixo
-        // Estes devem ser registrados ANTES do handler catch-all para 404.
-        // O serve_static_file_handler já remove a barra inicial e busca no StorageManager.
-        httpd_uri_t uri_css_prefix = { .uri="/css/*", .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_js_prefix  = { .uri="/js/*",  .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_img_prefix = { .uri="/img/*", .method=HTTP_GET, .handler=serve_static_file_handler, .user_ctx=nullptr };
-
-        httpd_register_uri_handler(server, &uri_css_prefix);
-        httpd_register_uri_handler(server, &uri_js_prefix);
-        httpd_register_uri_handler(server, &uri_img_prefix);
-
-        // 6. Handler catch-all para 404 final (deve ser o ÚLTIMO a ser registrado)
-        // Este handler só será chamado se nenhuma das URIs acima corresponder.
-        httpd_uri_t uri_catch_all = { .uri="*", .method=(httpd_method_t)HTTP_ANY, .handler=not_found_handler, .user_ctx=nullptr };
-        httpd_register_uri_handler(server, &uri_catch_all);
+        // 6. Handler catch-all para 404
+        registerUriHandler("*",(httpd_method_t)HTTP_ANY,not_found_handler);
         ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {

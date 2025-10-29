@@ -23,4 +23,5 @@ namespace GlobalConfigData {
     esp_err_t init();
     void updateIp(const std::string& ip);
     void updateName(const std::string& name);
+    std::string replacePlaceholders(const std::string& content,const std::string& search,const std::string& replace);
 }

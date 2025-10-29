@@ -24,4 +24,13 @@ namespace GlobalConfigData{
     void updateName(const std::string& name) {
         // cfg->central_name = name;
     }
+    std::string replacePlaceholders(const std::string& content,const std::string& search,const std::string& replace) {
+        std::string result = content;
+        size_t pos = 0;
+        while ((pos = result.find(search, pos)) != std::string::npos) {
+            result.replace(pos, search.length(), replace);
+            pos += replace.length();
+        }
+        return result;
+    }
 }

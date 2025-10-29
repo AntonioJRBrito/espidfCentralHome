@@ -5,19 +5,12 @@ static const char* TAG = "Storage";
 namespace Storage {
     static void loadFileToPsram(const char* path, const char* key, const char* mime) {
         FILE* f = fopen(path, "rb");
-        if (!f) {
-            ESP_LOGW(TAG, "Arquivo ausente: %s", path);
-            return;
-        }
+        if(!f){ESP_LOGW(TAG, "Arquivo ausente: %s", path);return;}
         fseek(f, 0, SEEK_END);
         size_t sz = ftell(f);
         fseek(f, 0, SEEK_SET);
         void* buf = heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
-        if (!buf) {
-            ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", key);
-            fclose(f);
-            return;
-        }
+        if(!buf){ESP_LOGE(TAG,"Falha ao alocar PSRAM (%s)",key);fclose(f);return;}
         fread(buf, 1, sz, f);
         fclose(f);
         StorageManager::registerPage(key, {buf, sz, mime});
@@ -31,12 +24,12 @@ namespace Storage {
         while (fgets(line, sizeof(line), f)) {
             line[strcspn(line, "\r\n")] = 0;
             switch (index) {
-                case 0: if (*line) GlobalConfigData::cfg->ssid           = line; break;
-                case 1: if (*line) GlobalConfigData::cfg->password       = line; break;
-                case 2: if (*line) GlobalConfigData::cfg->central_name   = line; break;
-                case 3: if (*line) GlobalConfigData::cfg->token_id       = line; break;
+                case 0: if (*line) GlobalConfigData::cfg->ssid = line; break;
+                case 1: if (*line) GlobalConfigData::cfg->password = line; break;
+                case 2: if (*line) GlobalConfigData::cfg->central_name = line; break;
+                case 3: if (*line) GlobalConfigData::cfg->token_id = line; break;
                 case 4: if (*line) GlobalConfigData::cfg->token_password = line; break;
-                case 5: if (*line) GlobalConfigData::cfg->token_flag     = line; break;
+                case 5: if (*line) GlobalConfigData::cfg->token_flag = line; break;
             }
             ++index;
         }
@@ -47,10 +40,7 @@ namespace Storage {
         ESP_LOGI(TAG, "Montando LittleFS...");
         esp_vfs_littlefs_conf_t conf = {"/littlefs","littlefs",nullptr,false,false,false,false};
         esp_err_t ret = esp_vfs_littlefs_register(&conf);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao montar LittleFS (%s)", esp_err_to_name(ret));
-            return ret;
-        }
+        if(ret!=ESP_OK){ESP_LOGE(TAG,"Falha ao montar LittleFS (%s)",esp_err_to_name(ret));return ret;}
         ESP_LOGI(TAG, "LittleFS montado com sucesso, carregando arquivos...");
         loadFileToPsram("/littlefs/index.html","index.html","text/html");
         loadFileToPsram("/littlefs/agenda.html","agenda.html","text/html");
@@ -62,6 +52,7 @@ namespace Storage {
         loadFileToPsram("/littlefs/js/messages.js","js/messages.js","application/javascript");
         loadFileToPsram("/littlefs/js/icons.js","js/icons.js","application/javascript");
         loadFileToPsram("/littlefs/img/logomarca","img/logomarca","image/png");
+        loadFileToPsram("/littlefs/ha/description.xml","description.xml","text/xml");
         loadGlobalConfigFile();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
         return ESP_OK;
