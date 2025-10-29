@@ -10,5 +10,4 @@
 
 namespace Storage {
     esp_err_t init();
-    static void loadFileToPsram(const char* path, const char* key, const char* mime);
 }

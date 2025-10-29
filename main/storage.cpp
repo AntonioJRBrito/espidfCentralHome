@@ -3,6 +3,25 @@
 static const char* TAG = "Storage";
 
 namespace Storage {
+    static void loadFileToPsram(const char* path, const char* key, const char* mime) {
+        FILE* f = fopen(path, "rb");
+        if (!f) {
+            ESP_LOGW(TAG, "Arquivo ausente: %s", path);
+            return;
+        }
+        fseek(f, 0, SEEK_END);
+        size_t sz = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        void* buf = heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
+        if (!buf) {
+            ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", key);
+            fclose(f);
+            return;
+        }
+        fread(buf, 1, sz, f);
+        fclose(f);
+        StorageManager::registerPage(key, {buf, sz, mime});
+    }
     static void loadGlobalConfigFile() {
         const char* path = "/littlefs/config/config";
         FILE* f = fopen(path, "r");
@@ -46,24 +65,5 @@ namespace Storage {
         loadGlobalConfigFile();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
         return ESP_OK;
-    }
-    static void loadFileToPsram(const char* path, const char* key, const char* mime) {
-        FILE* f = fopen(path, "rb");
-        if (!f) {
-            ESP_LOGW(TAG, "Arquivo ausente: %s", path);
-            return;
-        }
-        fseek(f, 0, SEEK_END);
-        size_t sz = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        void* buf = heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
-        if (!buf) {
-            ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", key);
-            fclose(f);
-            return;
-        }
-        fread(buf, 1, sz, f);
-        fclose(f);
-        StorageManager::registerPage(key, {buf, sz, mime});
     }
 }
