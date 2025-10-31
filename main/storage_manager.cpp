@@ -2,16 +2,35 @@
 #include "storage.hpp"
 
 static const char* TAG = "StorageManager";
-
 namespace StorageManager {
-    static std::unordered_map<std::string, Page> pageMap;
-    void registerPage(const char* uri, const Page& p) {
+    static std::unordered_map<std::string, Page*> pageMap;
+    static std::unordered_map<std::string, Device*> deviceMap;
+    void registerPage(const char* uri, Page* p) {
         pageMap[uri] = p;
-        ESP_LOGI(TAG, "Página registrada: %s (%zu bytes, %s)", uri, p.size, p.mime.c_str());
+        ESP_LOGI(TAG, "Página registrada: %s (%zu bytes, %s)", uri, p->size, p->mime.c_str());
     }
     const Page* getPage(const char* uri) {
         auto it = pageMap.find(uri);
-        return (it != pageMap.end()) ? &it->second : nullptr;
+        return (it != pageMap.end()) ? it->second : nullptr;
+    }
+    void registerDevice(const std::string& id, Device* device) {
+        deviceMap[id] = device;
+        ESP_LOGI(TAG, "Dispositivo registrado: ID=%s, Nome=%s, Tipo=%d, Status=%d", id.c_str(), device->name.c_str(), device->type, device->status);
+    }
+    const Device* getDevice(const std::string& id) {
+        auto it = deviceMap.find(id);
+        return (it != deviceMap.end()) ? it->second : nullptr;
+    }
+    size_t getDeviceCount() {
+        return deviceMap.size();
+    }
+    std::vector<std::string> getDeviceIds() {
+        std::vector<std::string> ids;
+        ids.reserve(deviceMap.size());
+        for (const auto& pair : deviceMap) {
+            ids.push_back(pair.first);
+        }
+        return ids;
     }
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
         EventId evt = static_cast<EventId>(id);
@@ -49,5 +68,3 @@ namespace StorageManager {
         return ESP_OK;
     }
 }
-
-/// acessar cia: const Page* p = StorageManager::getPage("/index.html");

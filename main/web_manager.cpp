@@ -60,58 +60,62 @@ namespace WebManager {
     }
     // --- Handlers para HA ---
     static esp_err_t upnp_description_handler(httpd_req_t* req) {
-        std::string uri = req->uri;
-        if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
-        const Page* page = StorageManager::getPage(uri.c_str());
-        if (!page) {
-            ESP_LOGW(TAG, "Arquivo não encontrado: %s", uri.c_str());
-            httpd_resp_send_404(req);
-            return ESP_ERR_NOT_FOUND;
-        }
+        const Page* page = StorageManager::getPage("description.xml");
+        if(!page){ESP_LOGW(TAG, "description.xml não encontrado");return ESP_ERR_NOT_FOUND;}
         std::string content((char*)page->data, page->size);
         content=GlobalConfigData::replacePlaceholders(content,"$IP$",GlobalConfigData::cfg->ip);
         content=GlobalConfigData::replacePlaceholders(content,"$ID$",GlobalConfigData::cfg->id);
         httpd_resp_set_type(req, page->mime.c_str());
         httpd_resp_send(req, content.c_str(), content.length());
-        ESP_LOGI(TAG,"%s", content.c_str());
+        ESP_LOGW(TAG,"%s", content.c_str());
         return ESP_OK;
     }
     static esp_err_t api_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "POST /api");
-        // TODO: Implementar lógica da API genérica
-        httpd_resp_sendstr(req, "API endpoint hit placeholder");
+        const Page* page = StorageManager::getPage("apiget.json");
+        if(!page){ESP_LOGW(TAG, "apiget.json não encontrado");return ESP_ERR_NOT_FOUND;}
+        std::string content((char*)page->data, page->size);
+        content=GlobalConfigData::replacePlaceholders(content,"$ID$",GlobalConfigData::cfg->id);
+        httpd_resp_set_type(req, page->mime.c_str());
+        httpd_resp_send(req, content.c_str(), content.length());
+        ESP_LOGW(TAG,"%s", content.c_str());
         return ESP_OK;
     }
-
-    static esp_err_t upnp_setup_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "GET /setup.xml");
-        // TODO: Servir setup.xml
-        httpd_resp_set_type(req, "text/xml");
-        httpd_resp_sendstr(req, "<root><setup>Setup info</setup></root>");
+    static esp_err_t lights_handler_get(httpd_req_t* req) {
+        std::string uri = req->uri;
+        ESP_LOGI(TAG, "GET: %s", uri.c_str());
+        size_t pos = uri.find("/lights");
+        if(pos == std::string::npos){return ESP_ERR_NOT_FOUND;}
+        std::string id = uri.substr(pos + 8);
+        if (id.empty()) {
+            const Page* page = StorageManager::getPage("lights_all.json");
+            if (!page) {ESP_LOGE(TAG, "lights_all.json não encontrado");return ESP_FAIL;}
+            std::string content((char*)page->data, page->size);
+            content = GlobalConfigData::replacePlaceholders(content,"$MAC$",GlobalConfigData::cfg->mac);
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_send(req, content.c_str(), content.length());
+            ESP_LOGI(TAG, "Servido: lights_all.json (%zu bytes)", content.length());
+            return ESP_OK;
+        }
+        int device_id = atoi(id.c_str());
+        if (device_id < 1 || device_id > 3) {ESP_LOGW(TAG, "ID inválido: %d", device_id);return ESP_ERR_INVALID_ARG;}
+        const Page* page = StorageManager::getPage("api/light_detail.json");
+        if (!page) {ESP_LOGE(TAG, "light_detail.json não encontrado");return ESP_FAIL;}
+        std::string content((char*)page->data, page->size);
+        content = GlobalConfigData::replacePlaceholders(content,"$DEVICE",std::to_string(device_id));
+        // content = GlobalConfigData::replacePlaceholders(content,"$DEVICENAME$",???);
+        content = GlobalConfigData::replacePlaceholders(content,"$MAC",GlobalConfigData::cfg->mac);
+        
+        // Substitui status
+        bool device_status = false; // TODO: buscar status real
+        content = GlobalConfigData::replacePlaceholders(content, "$STATUS$", device_status ? "true" : "false");
+        
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, content.c_str(), content.length());
+        
+        ESP_LOGI(TAG, "Servido: light_detail.json para ID=%d (%zu bytes)", device_id, content.length());
         return ESP_OK;
     }
-
-    static esp_err_t upnp_sensor_response_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "UPnP Control/Event: %s", req->uri);
-        // TODO: Lógica para responder a comandos UPnP
-        httpd_resp_sendstr(req, "UPnP control response placeholder");
-        return ESP_OK;
-    }
-
-    static esp_err_t upnp_subscribe_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "UPnP Subscribe: %s", req->uri);
-        // TODO: Lógica para gerenciar subscrições UPnP
-        httpd_resp_sendstr(req, "UPnP subscribe response placeholder");
-        return ESP_OK;
-    }
-
-    static esp_err_t upnp_event_service_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "GET /eventservice.xml");
-        // TODO: Servir eventservice.xml
-        httpd_resp_set_type(req, "text/xml");
-        httpd_resp_sendstr(req, "<root><eventService>Event service info</eventService></root>");
-        return ESP_OK;
-    }
+    // --- Handler redirecionador para "/" ---
     static esp_err_t not_found_handler(httpd_req_t* req) {
         ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
@@ -122,16 +126,13 @@ namespace WebManager {
     // --- Handler para a raiz "/" (serve index.html) ---
     static esp_err_t root_handler(httpd_req_t* req) {
         const Page* page = StorageManager::getPage("index.html");
-        if (!page) {
-            ESP_LOGW(TAG, "index.html ausente na PSRAM para /");
-            httpd_resp_send_404(req);
-            return ESP_OK;
-        }
+        if(!page){ESP_LOGW(TAG,"index.html não encontrado");httpd_resp_send_404(req);return ESP_OK;}
         httpd_resp_set_type(req, "text/html");
         httpd_resp_send(req, (const char*)page->data, page->size);
         ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
         return ESP_OK;
     }
+    // --- Registrador de handlers ---
     static void registerUriHandler(const char* description,http_method method,esp_err_t (*handler)(httpd_req_t *r)){
         httpd_uri_t uri_buf;
         uri_buf.uri=description;
@@ -172,23 +173,12 @@ namespace WebManager {
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
         registerUriHandler("/GET/isok",HTTP_GET,get_config_handler);
         registerUriHandler("/encerrar",HTTP_POST,encerrar_handler);
-        // 4. Rotas UPnP
+        // 4. Rotas ha
         registerUriHandler("/description.xml",HTTP_GET,upnp_description_handler);
-        registerUriHandler("/api",HTTP_POST,api_handler);
+        registerUriHandler("/api",(httpd_method_t)HTTP_ANY,api_handler);
 
-        httpd_uri_t uri_setup         = { .uri="/setup.xml",              .method=HTTP_GET, .handler=upnp_setup_handler,       .user_ctx=nullptr };
-        httpd_uri_t uri_motion_control = { .uri="/upnp/control/motion1",   .method=(httpd_method_t)HTTP_ANY, .handler=upnp_sensor_response_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_basic_control  = { .uri="/upnp/control/basicevent1", .method=(httpd_method_t)HTTP_ANY, .handler=upnp_sensor_response_handler, .user_ctx=nullptr };
-        httpd_uri_t uri_motion_event   = { .uri="/upnp/event/motion1",     .method=(httpd_method_t)HTTP_ANY, .handler=upnp_subscribe_handler,     .user_ctx=nullptr };
-        httpd_uri_t uri_basic_event    = { .uri="/upnp/event/basicevent1", .method=(httpd_method_t)HTTP_ANY, .handler=upnp_subscribe_handler,     .user_ctx=nullptr };
-        httpd_uri_t uri_event_service  = { .uri="/eventservice.xml",       .method=HTTP_GET, .handler=upnp_event_service_handler, .user_ctx=nullptr };
+        //   putgetSTR="/api/"+ID+"/lights";
 
-        httpd_register_uri_handler(server, &uri_setup);
-        httpd_register_uri_handler(server, &uri_motion_control);
-        httpd_register_uri_handler(server, &uri_basic_control);
-        httpd_register_uri_handler(server, &uri_motion_event);
-        httpd_register_uri_handler(server, &uri_basic_event);
-        httpd_register_uri_handler(server, &uri_event_service);
         // 6. Handler catch-all para 404
         registerUriHandler("*",(httpd_method_t)HTTP_ANY,not_found_handler);
         ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);

@@ -7,6 +7,10 @@
 #include <string>
 #include "esp_heap_caps.h"
 #include <stdio.h>
+#include <dirent.h>
+#include <cstring>
+#include <new>
+#include <cstddef>
 
 namespace Storage {
     esp_err_t init();

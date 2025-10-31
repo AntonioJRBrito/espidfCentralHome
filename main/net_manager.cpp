@@ -100,10 +100,11 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
         ESP_ERROR_CHECK(esp_wifi_start());
-        dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*","WIFI_AP_DEF");
-        start_dns_server(&config);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        dns_server_config_t dns_config = DNS_SERVER_CONFIG_SINGLE("*", "192.168.4.1");
+        start_dns_server(&dns_config);
         return ESP_OK;
-    }
+   }
     esp_err_t init()
     {
         esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);
