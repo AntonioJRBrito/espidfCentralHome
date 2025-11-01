@@ -1,9 +1,5 @@
 #include "storage.hpp"
 
-// inline void* operator new(size_t, void* ptr) noexcept {
-//     return ptr;
-// }
-
 static const char* TAG = "Storage";
 
 namespace Storage {

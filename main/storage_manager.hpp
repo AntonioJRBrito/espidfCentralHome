@@ -24,7 +24,7 @@ struct Device {
 namespace StorageManager {
     esp_err_t init();
     // page
-    void registerPage(const char* uri, const Page* page);
+    void registerPage(const char* uri, Page* page);
     const Page* getPage(const char* uri);
     // device
     void registerDevice(const std::string& id, Device* device);

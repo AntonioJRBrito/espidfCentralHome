@@ -4,6 +4,7 @@ static const char* TAG = "WebManager";
 
 namespace WebManager {
     static httpd_handle_t server = nullptr;
+    static const char* WILDCARD_URI = "*";
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
@@ -134,12 +135,18 @@ namespace WebManager {
     }
     // --- Registrador de handlers ---
     static void registerUriHandler(const char* description,http_method method,esp_err_t (*handler)(httpd_req_t *r)){
+        ESP_LOGI(TAG, "→ Registrando URI: '%s' (método=%d)", description, method);  // ← LOG ADICIONADO
         httpd_uri_t uri_buf;
-        uri_buf.uri=description;
-        uri_buf.method=method;
-        uri_buf.handler=handler;
-        uri_buf.user_ctx=nullptr;
-        httpd_register_uri_handler(server, &uri_buf);
+        uri_buf.uri = description;
+        uri_buf.method = method;
+        uri_buf.handler = handler;
+        uri_buf.user_ctx = nullptr;
+        esp_err_t ret = httpd_register_uri_handler(server, &uri_buf);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "✓ URI '%s' registrada com sucesso", description);
+        } else {
+            ESP_LOGE(TAG, "✗ Falha ao registrar URI '%s': %s", description, esp_err_to_name(ret));
+        }
     }
     // --- Inicializa servidor HTTP ---
     static void startServer() {
@@ -149,10 +156,8 @@ namespace WebManager {
         config.lru_purge_enable = true;
         config.uri_match_fn = httpd_uri_match_wildcard;
         config.max_uri_handlers = 30;
-        if (httpd_start(&server, &config) != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao iniciar servidor HTTP");
-            return;
-        }
+        if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
+        else{ESP_LOGI(TAG, "Servidor HTTP executando");}
         // 1. Rotas estáticas principais (HTML/CSS/JS/IMG)
         registerUriHandler("/",HTTP_GET,root_handler);
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
@@ -180,7 +185,6 @@ namespace WebManager {
         //   putgetSTR="/api/"+ID+"/lights";
 
         // 6. Handler catch-all para 404
-        registerUriHandler("*",(httpd_method_t)HTTP_ANY,not_found_handler);
         ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
@@ -188,11 +192,21 @@ namespace WebManager {
             ESP_LOGI(TAG, "NET_IFOK → iniciando servidor HTTP");
             startServer();
             EventBus::unregHandler(EventDomain::NETWORK, &onNetworkEvent);
+            EventBus::post(EventDomain::WEB,EventId::WEB_STARTED,&server,sizeof(httpd_handle_t));
+            ESP_LOGI(TAG, "→ WEB_STARTED publicado");
+        }
+    }
+    static void onSocketEvent(void*, esp_event_base_t, int32_t id, void*) {
+        if (static_cast<EventId>(id)==EventId::SOC_STARTED) {
+            ESP_LOGI(TAG, "SOC_STARTED → iniciando '*'");
+            registerUriHandler(WILDCARD_URI,(httpd_method_t)HTTP_ANY,not_found_handler);
+            ESP_LOGI(TAG, "→ '*' publicado");
         }
     }
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
+        EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::post(EventDomain::WEB, EventId::WEB_READY);
         ESP_LOGI(TAG, "→ WEB_READY publicado; aguardando NET_IFOK");
         return ESP_OK;
