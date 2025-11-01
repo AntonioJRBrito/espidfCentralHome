@@ -185,7 +185,7 @@ namespace SocketManager {
         // Registra handler de eventos
         EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
-        EventBus::post(EventDomain::SOCKET, EventId::SOC_READY);
+        EventBus::post(EventDomain::READY, EventId::SOC_READY);
         ESP_LOGI(TAG, "→ SOC_READY publicado");
         return ESP_OK;
     }

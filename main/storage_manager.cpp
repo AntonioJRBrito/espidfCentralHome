@@ -63,7 +63,7 @@ namespace StorageManager {
             ESP_LOGE(TAG, "Falha ao inicializar Storage físico");
             return ret;
         }
-        EventBus::post(EventDomain::STORAGE, EventId::STO_READY);
+        EventBus::post(EventDomain::READY, EventId::STO_READY);
         ESP_LOGI(TAG, "→ STO_READY publicado");
         return ESP_OK;
     }

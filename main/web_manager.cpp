@@ -4,7 +4,6 @@ static const char* TAG = "WebManager";
 
 namespace WebManager {
     static httpd_handle_t server = nullptr;
-    static const char* WILDCARD_URI = "*";
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
@@ -199,7 +198,16 @@ namespace WebManager {
     static void onSocketEvent(void*, esp_event_base_t, int32_t id, void*) {
         if (static_cast<EventId>(id)==EventId::SOC_STARTED) {
             ESP_LOGI(TAG, "SOC_STARTED → iniciando '*'");
-            registerUriHandler(WILDCARD_URI,(httpd_method_t)HTTP_ANY,not_found_handler);
+            httpd_uri_t uri_buf;
+            uri_buf.uri = "*";
+            uri_buf.method = (httpd_method_t)HTTP_ANY;
+            uri_buf.handler = redirect_to_root_handler;
+            esp_err_t ret = httpd_register_uri_handler(server, &uri_buf);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "✓ URI '*' registrada com sucesso");
+            } else {
+                ESP_LOGE(TAG, "✗ Falha ao registrar URI '*': %s", esp_err_to_name(ret));
+            }
             ESP_LOGI(TAG, "→ '*' publicado");
         }
     }
@@ -207,7 +215,7 @@ namespace WebManager {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
-        EventBus::post(EventDomain::WEB, EventId::WEB_READY);
+        EventBus::post(EventDomain::READY, EventId::WEB_READY);
         ESP_LOGI(TAG, "→ WEB_READY publicado; aguardando NET_IFOK");
         return ESP_OK;
     }

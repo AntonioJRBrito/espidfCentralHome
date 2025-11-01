@@ -5,12 +5,15 @@ static const char* TAG = "NetManager";
 namespace NetManager
 {
     static esp_netif_t* netif_ap = nullptr;
-    static void onEventBus(void*,esp_event_base_t base,int32_t id,void*)
+    static void onEventReadyBus(void*,esp_event_base_t base,int32_t id,void*)
     {
         if(static_cast<EventId>(id)==EventId::READY_ALL){
             EventBus::post(EventDomain::NETWORK, EventId::NET_IFOK);
             ESP_LOGI(TAG, "NET_IFOK enviado");
         }
+    }
+    static void onEventBus(void*,esp_event_base_t base,int32_t id,void*)
+    {
     }
     static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data)
     {
@@ -19,9 +22,13 @@ namespace NetManager
             switch (id)
             {
                 case WIFI_EVENT_AP_START:
+                {
+                    dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*","WIFI_AP_DEF");
+                    start_dns_server(&config);
                     ESP_LOGI(TAG, "AP iniciado");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_APCONNECTED);
                     break;
+                }
                 case WIFI_EVENT_AP_STOP:
                     ESP_LOGW(TAG, "AP parado");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_APDISCONNECTED);
@@ -66,6 +73,10 @@ namespace NetManager
                     // ESP_LOGI(TAG, "Cliente conectado ao AP");
                     // EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
                     // break;
+                case IP_EVENT_STA_GOT_IP:
+                    ESP_LOGI(TAG, "Central obteve IP");
+                    EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
+                    break;
                 default:
                     break;
             }
@@ -100,9 +111,6 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
         ESP_ERROR_CHECK(esp_wifi_start());
-        vTaskDelay(pdMS_TO_TICKS(100));
-        dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*","WIFI_AP_DEF");
-        start_dns_server(&config);
         return ESP_OK;
    }
     esp_err_t init()
@@ -110,12 +118,13 @@ namespace NetManager
         esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);
         esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);
         EventBus::regHandler(EventDomain::NETWORK, &onEventBus, nullptr);
+        EventBus::regHandler(EventDomain::READY, &onEventReadyBus, nullptr);
         if (startAP() != ESP_OK){
             ESP_LOGE(TAG, "Falha ao criar AP");
             return ESP_FAIL;
         }else{
             vTaskDelay(pdMS_TO_TICKS(300));
-            EventBus::post(EventDomain::NETWORK, EventId::NET_READY);
+            EventBus::post(EventDomain::READY, EventId::NET_READY);
             ESP_LOGI(TAG, "→ NET_READY publicado");
         }
         ESP_LOGI(TAG, "NetManager inicializado (AP ativo, NET_READY enviado)");

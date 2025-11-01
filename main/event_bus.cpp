@@ -1,7 +1,7 @@
 #include "event_bus.hpp"
 
 ESP_EVENT_DEFINE_BASE(NETWORK_BASE);
-ESP_EVENT_DEFINE_BASE(RTC_BASE);
+ESP_EVENT_DEFINE_BASE(READY_BASE);
 ESP_EVENT_DEFINE_BASE(DEVICE_BASE);
 ESP_EVENT_DEFINE_BASE(SOCKET_BASE);
 ESP_EVENT_DEFINE_BASE(WEB_BASE);
@@ -57,7 +57,7 @@ namespace EventBus{
         if (ret != ESP_OK) return ret;
         ESP_LOGI(TAG, "Loop slow criado");
         domainMap[EventDomain::NETWORK] = {NETWORK_BASE,loopPriority};
-        domainMap[EventDomain::RTC] = {RTC_BASE,loopPriority};
+        domainMap[EventDomain::READY] = {READY_BASE,loopSlow};
         domainMap[EventDomain::DEVICE] = {DEVICE_BASE,loopFast};
         domainMap[EventDomain::SOCKET] = {SOCKET_BASE,loopMedium};
         domainMap[EventDomain::WEB] = {WEB_BASE,loopMedium};

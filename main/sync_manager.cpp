@@ -7,7 +7,6 @@ static const char* TAG = "SyncManager";
 
 namespace SyncManager
 {
-    static constexpr uint8_t DOMAIN_COUNT = static_cast<uint8_t>(EventDomain::BLE) + 1;
     constexpr uint32_t BIT_NET = 1u << 0;
     constexpr uint32_t BIT_RTC = 1u << 1;
     constexpr uint32_t BIT_DEV = 1u << 2;
@@ -61,32 +60,25 @@ namespace SyncManager
                 default:
                     return;
             }
-            ESP_LOGI(TAG, "Domínio %d pronto (mask=0x%08X)", (int)domain, ready_mask);
+            ESP_LOGI(TAG, "Mask=0x%08X", ready_mask);
         }
         if (ready_mask == ALL_MASK)
         {
             ESP_LOGI(TAG, "→ Todos os domínios prontos: publicando READY_ALL");
-            EventBus::post(EventDomain::NETWORK, EventId::READY_ALL);
+            EventBus::post(EventDomain::READY, EventId::READY_ALL);
             deinit();
         }
     }
     esp_err_t init()
     {
-        ESP_LOGI(TAG, "Registrando handlers de sincronização (%u domínios)", DOMAIN_COUNT);
-        for (uint8_t d = 0; d < DOMAIN_COUNT; ++d)
-        {
-            EventBus::regHandler(static_cast<EventDomain>(d), &onReady, reinterpret_cast<void*>(static_cast<uintptr_t>(d)));
-        }
+        EventBus::regHandler(EventDomain::READY, &onReady, nullptr);
         return ESP_OK;
     }
     esp_err_t deinit()
     {
         ESP_LOGW(TAG, "Encerrando SyncManager e removendo handlers...");
-        for (uint8_t d = 0; d < DOMAIN_COUNT; ++d)
-        {
-            EventBus::unregHandler(static_cast<EventDomain>(d), &onReady);
-        }
-        ESP_LOGI(TAG, "SyncManager fora das filas de evento");
+        EventBus::unregHandler(EventDomain::READY, &onReady);
+        ESP_LOGI(TAG, "SyncManager fora da fila de evento");
         return ESP_OK;
     }
 }
