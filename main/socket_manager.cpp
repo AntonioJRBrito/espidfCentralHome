@@ -8,6 +8,7 @@ namespace SocketManager {
     static std::mutex clients_mutex;
     static httpd_handle_t ws_server = nullptr;
     static bool ws_registered = false;
+    static httpd_uri_t ws_uri;
     // Adiciona cliente à lista
     static void addClient(int fd) {
         std::lock_guard<std::mutex> lock(clients_mutex);
@@ -139,15 +140,13 @@ namespace SocketManager {
         if (ws_registered) {ESP_LOGW(TAG, "WebSocket já registrado, ignorando...");return ESP_OK;}
         ws_server = server;
         ESP_LOGI(TAG, "Registrando WebSocket em /ws...");
-        httpd_uri_t ws_uri = {
-            .uri = "/ws",
-            .method = HTTP_GET,
-            .handler = ws_handler,
-            .user_ctx = nullptr,
-            .is_websocket = true,
-            .handle_ws_control_frames = false,
-            .supported_subprotocol = nullptr
-        };
+        ws_uri.uri = "/ws";
+        ws_uri.method = HTTP_GET;
+        ws_uri.handler = ws_handler;
+        ws_uri.user_ctx = nullptr;
+        ws_uri.is_websocket = true;
+        ws_uri.handle_ws_control_frames = false;
+        ws_uri.supported_subprotocol = nullptr;
         esp_err_t ret = httpd_register_uri_handler(server, &ws_uri);
         if (ret == ESP_OK) {
             ws_registered = true;

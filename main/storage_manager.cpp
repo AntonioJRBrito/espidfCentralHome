@@ -36,8 +36,9 @@ namespace StorageManager {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_IFOK) {
             ESP_LOGI(TAG, "Network IFOK recebido → checar SSID/password armazenados...");
-            // Aqui entrará a recuperação de SSID/senha se existirem
-            // Storage::getWifiCredentials(...)
+            if(!GlobalConfigData::isBlankOrEmpty(GlobalConfigData::cfg->ssid)){
+                EventBus::post(EventDomain::STORAGE, EventId::STO_SSIDOK);
+            }
         }
     }
     void onStorageEvent(void*, esp_event_base_t, int32_t id, void*) {

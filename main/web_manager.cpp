@@ -4,6 +4,8 @@ static const char* TAG = "WebManager";
 
 namespace WebManager {
     static httpd_handle_t server = nullptr;
+    static httpd_uri_t uri_handlers[30];
+    static int uri_count = 0;
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
@@ -133,14 +135,17 @@ namespace WebManager {
         return ESP_OK;
     }
     // --- Registrador de handlers ---
-    static void registerUriHandler(const char* description,http_method method,esp_err_t (*handler)(httpd_req_t *r)){
-        ESP_LOGI(TAG, "→ Registrando URI: '%s' (método=%d)", description, method);  // ← LOG ADICIONADO
-        httpd_uri_t uri_buf;
-        uri_buf.uri = description;
-        uri_buf.method = method;
-        uri_buf.handler = handler;
-        uri_buf.user_ctx = nullptr;
-        esp_err_t ret = httpd_register_uri_handler(server, &uri_buf);
+    static void registerUriHandler(const char* description, http_method method, esp_err_t (*handler)(httpd_req_t *r)) {
+        if (uri_count >= 30) {
+            ESP_LOGE(TAG, "Número máximo de URIs atingido");
+            return;
+        }
+        httpd_uri_t* uri = &uri_handlers[uri_count++];  // pega o próximo slot estático
+        uri->uri = description;
+        uri->method = method;
+        uri->handler = handler;
+        uri->user_ctx = nullptr;
+        esp_err_t ret = httpd_register_uri_handler(server, uri);
         if (ret == ESP_OK) {
             ESP_LOGI(TAG, "✓ URI '%s' registrada com sucesso", description);
         } else {
@@ -167,6 +172,7 @@ namespace WebManager {
         registerUriHandler("/css/*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/js/*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/img/*",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/favicon.ico",HTTP_GET,serve_static_file_handler);
         // 2. Captive Portal
         registerUriHandler("/generate_204",HTTP_GET,redirect_to_root_handler);
         registerUriHandler("/hotspot-detect.html",HTTP_GET,redirect_to_root_handler);
@@ -195,6 +201,8 @@ namespace WebManager {
             ESP_LOGI(TAG, "→ WEB_STARTED publicado");
         }
     }
+    static void onWebEvent(void*, esp_event_base_t, int32_t id, void*) {
+    }
     static void onSocketEvent(void*, esp_event_base_t, int32_t id, void*) {
         if (static_cast<EventId>(id)==EventId::SOC_STARTED) {
             ESP_LOGI(TAG, "SOC_STARTED → iniciando '*'");
@@ -215,6 +223,7 @@ namespace WebManager {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
+        EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
         EventBus::post(EventDomain::READY, EventId::WEB_READY);
         ESP_LOGI(TAG, "→ WEB_READY publicado; aguardando NET_IFOK");
         return ESP_OK;

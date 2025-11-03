@@ -3,6 +3,17 @@
 static const char* TAG = "GlobalConfig";
 GlobalConfig* GlobalConfigData::cfg = nullptr;
 namespace GlobalConfigData{
+    bool isBlankOrEmpty(const std::string& str) {
+        if (str.empty()) return true;
+        return str.find_first_not_of(" \t\n\r\f\v") == std::string::npos;
+    }
+    std::string trim(const std::string& str) {
+        if (str.empty()) return "";
+        size_t start = str.find_first_not_of(" \t\n\r\f\v");
+        if (start == std::string::npos) return "";
+        size_t end = str.find_last_not_of(" \t\n\r\f\v");
+        return str.substr(start, end - start + 1);
+    }
     esp_err_t init() {
         cfg = (GlobalConfig*)heap_caps_calloc(1, sizeof(GlobalConfig), MALLOC_CAP_SPIRAM);
         if (!cfg) return ESP_ERR_NO_MEM;

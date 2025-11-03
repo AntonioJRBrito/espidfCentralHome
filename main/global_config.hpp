@@ -24,4 +24,6 @@ namespace GlobalConfigData {
     void updateIp(const std::string& ip);
     void updateName(const std::string& name);
     std::string replacePlaceholders(const std::string& content,const std::string& search,const std::string& replace);
+    bool isBlankOrEmpty(const std::string& str);
+    std::string trim(const std::string& str);
 }

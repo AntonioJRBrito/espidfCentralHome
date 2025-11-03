@@ -100,6 +100,7 @@ namespace Storage {
         loadFileToPsram("/littlefs/ha/apiget.json","apiget.json","application/json");
         loadFileToPsram("/littlefs/ha/lights_all.json", "lights_all.json", "application/json");
         loadFileToPsram("/littlefs/ha/light_detail.json", "light_detail.json", "application/json");
+        loadFileToPsram("/littlefs/img/favicon.ico","favicon.ico","image/x-icon");
         loadGlobalConfigFile();
         loadAllDevices();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
