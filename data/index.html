@@ -192,6 +192,7 @@
             if(event.data.startsWith("listNet")){
               clearTimeout(timeoutId);
               const msg=event.data.substring(7);
+              console.log(msg);
               if(msg.trim().startsWith('<option')){
                 document.getElementById('nomewifi').innerHTML='<option value="" disabled selected>Selecione uma rede</option>'+msg;
                 findInfo();

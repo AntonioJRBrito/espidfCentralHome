@@ -17,6 +17,7 @@ namespace GlobalConfigData{
     esp_err_t init() {
         cfg = (GlobalConfig*)heap_caps_calloc(1, sizeof(GlobalConfig), MALLOC_CAP_SPIRAM);
         if (!cfg) return ESP_ERR_NO_MEM;
+        cfg->wifi_cache.last_scan = 0;
         uint8_t mac[6];
         esp_read_mac(mac,ESP_MAC_WIFI_STA);
         char buf[18];
@@ -28,6 +29,32 @@ namespace GlobalConfigData{
         cfg->hostname = buf;
         ESP_LOGI(TAG, "GlobalConfig inicializado");
         return ESP_OK;
+    }
+    bool isWifiCacheValid() {
+        if (!cfg || cfg->wifi_cache.networks_html.empty()) {return false;}
+        if (cfg->wifi_cache.last_scan == 0) {return false;}
+        if (cfg->wifi_cache.networks_html.empty()) {return false;}
+        time_t now = time(nullptr);
+        time_t elapsed = now - cfg->wifi_cache.last_scan;
+        if (elapsed > 300) {return false;}
+        return true;
+    }
+    void updateWifiCache(const std::string& html_options) {
+        if (!cfg) return;
+        cfg->wifi_cache.networks_html = html_options;
+        cfg->wifi_cache.last_scan = time(nullptr);
+    }
+    const std::string& getWifiCache() {
+        static const std::string empty;
+        if (!isWifiCacheValid()) {
+            return empty;
+        }
+        return cfg->wifi_cache.networks_html;
+    }
+    void invalidateWifiCache() {
+        if (!cfg) return;
+        cfg->wifi_cache.networks_html.clear();
+        cfg->wifi_cache.last_scan = 0;
     }
     void updateIp(const std::string& ip) {
         // cfg->ip = ip;

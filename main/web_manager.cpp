@@ -17,6 +17,7 @@ namespace WebManager {
             return ESP_ERR_NOT_FOUND;
         }
         httpd_resp_set_type(req, page->mime.c_str());
+        httpd_resp_set_hdr(req, "Connection", "close");
         httpd_resp_send(req, (const char*)page->data, page->size);
         ESP_LOGI(TAG, "Servido (PSRAM): %s (%zu bytes)", uri.c_str(), page->size);
         return ESP_OK;

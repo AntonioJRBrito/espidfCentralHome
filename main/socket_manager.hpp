@@ -7,7 +7,6 @@
 #include <mutex>
 #include <cstring>
 #include <algorithm>
-
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_log.h>
@@ -16,6 +15,8 @@
 #include <sys/param.h>
 #include "esp_netif.h"
 #include "esp_eth.h"
+#include <string>
+#include "global_config.hpp"
 
 namespace SocketManager {
     esp_err_t init();
