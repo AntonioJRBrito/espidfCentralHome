@@ -24,6 +24,7 @@ struct GlobalConfig {
     std::string token_id;
     std::string token_password;
     std::string token_flag;
+    std::string is_connected_sta;
     WifiScanCache wifi_cache;
 };
 namespace GlobalConfigData {

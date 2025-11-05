@@ -11,6 +11,9 @@
 #include "nvs_flash.h"
 #include "esp_mac.h"
 #include "dns_server.h"
+#include "lwip/lwip_napt.h"
+#include "lwip/netif.h"
+#include "lwip/esp_netif_net_stack.h"
 
 namespace NetManager
 {

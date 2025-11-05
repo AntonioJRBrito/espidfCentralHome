@@ -73,7 +73,7 @@ namespace Storage {
         struct dirent* entry;
         while ((entry = readdir(dir)) != nullptr) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {continue;}
-            char full_path[512];  // ← Aumentado de 256 para 512
+            char full_path[512];
             snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
             loadDeviceFile(full_path, entry->d_name);
         }

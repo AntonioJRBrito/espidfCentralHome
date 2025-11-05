@@ -10,6 +10,7 @@
 #include "storage_manager.hpp"
 #include "esp_http_server.h"
 #include "esp_netif.h"
+#include "cJSON.h"
 
 namespace WebManager {
     esp_err_t init();

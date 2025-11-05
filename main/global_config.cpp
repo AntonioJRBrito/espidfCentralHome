@@ -17,6 +17,7 @@ namespace GlobalConfigData{
     esp_err_t init() {
         cfg = (GlobalConfig*)heap_caps_calloc(1, sizeof(GlobalConfig), MALLOC_CAP_SPIRAM);
         if (!cfg) return ESP_ERR_NO_MEM;
+        cfg->is_connected_sta = "0";
         cfg->wifi_cache.last_scan = 0;
         uint8_t mac[6];
         esp_read_mac(mac,ESP_MAC_WIFI_STA);

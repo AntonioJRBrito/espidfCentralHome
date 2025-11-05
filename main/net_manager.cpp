@@ -24,7 +24,7 @@ namespace NetManager
         sta_cfg.sta.pmf_cfg.capable = true;
         sta_cfg.sta.pmf_cfg.required = false;
         if (isTest) {
-            // 🔹 Futuro: você pode adicionar timeout ou callback para validar
+            // 🔹 Futuro: adicionar timeout ou callback para validar
             ESP_LOGI(TAG, "Modo TESTE: esta conexão não será salva.");
         }
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_cfg));
@@ -42,33 +42,20 @@ namespace NetManager
     }
     static void onEventNetworkBus(void*,esp_event_base_t base,int32_t id,void* data)
     {
-       EventId evt = static_cast<EventId>(id);
-
+        EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_LISTQRY) {
-            // Extrai o fd do cliente solicitante
-            if (data) {
-                memcpy(&s_requesting_fd, data, sizeof(int));
-                ESP_LOGI(TAG, "Pedido de lista WiFi recebido (fd=%d)", s_requesting_fd);
-            } else {
-                ESP_LOGW(TAG, "Pedido de lista WiFi sem fd válido!");
-                s_requesting_fd = -1;
-            }
-
-            // Verifica se o cache é válido (menos de 5 minutos)
+            if(data){memcpy(&s_requesting_fd,data,sizeof(int));ESP_LOGI(TAG,"Pedido de lista WiFi recebido (fd=%d)",s_requesting_fd);}
+            else{ESP_LOGW(TAG,"Pedido de lista WiFi sem fd válido!");s_requesting_fd = -1;}
             if (GlobalConfigData::isWifiCacheValid()) {
                 ESP_LOGI(TAG, "Cache WiFi válido, enviando imediatamente");
-                EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK, 
-                              &s_requesting_fd, sizeof(int));
-                s_requesting_fd = -1;  // Reset
+                EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK,&s_requesting_fd, sizeof(int));
+                s_requesting_fd = -1;
             } else {
-                // Cache inválido - inicia scan se não estiver em progresso
                 if (s_scan_in_progress) {
                     ESP_LOGW(TAG, "Scan já em progresso, aguardando...");
                 } else {
                     ESP_LOGI(TAG, "Cache inválido, iniciando scan WiFi...");
                     s_scan_in_progress = true;
-
-                    // Configuração do scan
                     wifi_scan_config_t scan_config = {
                         .ssid = nullptr,
                         .bssid = nullptr,
@@ -77,14 +64,12 @@ namespace NetManager
                         .scan_type = WIFI_SCAN_TYPE_ACTIVE,
                         .scan_time = { .active = { .min = 100, .max = 300 } }
                     };
-
                     esp_err_t ret = esp_wifi_scan_start(&scan_config, false);  // false = não bloqueante
                     if (ret != ESP_OK) {
                         ESP_LOGE(TAG, "Falha ao iniciar scan: %s", esp_err_to_name(ret));
                         s_scan_in_progress = false;
                         GlobalConfigData::updateWifiCache("<option value=''>Erro ao buscar redes</option>");
-                        EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL, 
-                                      &s_requesting_fd, sizeof(int));
+                        EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL,&s_requesting_fd,sizeof(int));
                         s_requesting_fd = -1;
                     }
                 }
@@ -120,11 +105,17 @@ namespace NetManager
                     ESP_LOGI(TAG, "STA iniciou");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STASTARTED);
                     break;
+                case WIFI_EVENT_STA_STOP:
+                    ESP_LOGI(TAG, "WiFi STA parado");
+                    GlobalConfigData::cfg->is_connected_sta="0";
+                    EventBus::post(EventDomain::NETWORK, EventId::NET_STASTOPPED);
+                    break;
                 case WIFI_EVENT_STA_CONNECTED:
                     ESP_LOGI(TAG, "STA conectada");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STACONNECTED);
                     break;
                 case WIFI_EVENT_STA_DISCONNECTED:
+                    GlobalConfigData::cfg->is_connected_sta="0";
                     if (s_isTestConnection) {
                         ESP_LOGW(TAG, "[TESTE] Falha ao conectar à rede fornecida.");
                         EventBus::post(EventDomain::NETWORK, EventId::NET_TESTFAILED);
@@ -182,7 +173,7 @@ namespace NetManager
                     for (uint16_t i = 0; i < num_networks; i++) {
                         std::string ssid = (char*)ap_records[i].ssid;
                         bool is_current = (ssid == current_ssid);
-                        if (is_current) {ESP_LOGI(TAG, "✓ Rede atual encontrada: %s", ssid.c_str());}
+                        if (is_current) {ESP_LOGI(TAG, "Rede atual encontrada: %s", ssid.c_str());}
                         html_options += "<option value='" + ssid + "'";
                         if (is_current) {html_options += " selected";}
                         html_options += ">" + ssid + "</option>";
@@ -210,14 +201,13 @@ namespace NetManager
                     // break;
                 case IP_EVENT_STA_GOT_IP:
                     ESP_LOGI(TAG, "STA obteve IP.");
-                    s_retry_count = 0; // reset do contador
+                    s_retry_count = 0;
+                    GlobalConfigData::cfg->is_connected_sta="1";
                     if (s_isTestConnection) {
                         ESP_LOGI(TAG, "[TESTE] Rede válida. IP obtido com sucesso!");
                         EventBus::post(EventDomain::NETWORK, EventId::NET_TESTSUCCESS);
                         s_isTestConnection = false;
-                    } else {
-                        EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
-                    }
+                    } else {EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);}
                     break;
                 default:
                     break;

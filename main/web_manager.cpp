@@ -32,9 +32,51 @@ namespace WebManager {
     }
     // --- Handlers para configuração e controle da central ---
     static esp_err_t get_info_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "GET /GET/info (POST)");
-        // TODO: Implementar lógica para obter informações (ex: de GlobalConfigData)
-        httpd_resp_sendstr(req, "GET info data placeholder");
+        ESP_LOGI(TAG, "POST /GET/info");
+        cJSON* root = cJSON_CreateObject();
+        if (!root) {
+            ESP_LOGE(TAG, "Falha ao criar objeto cJSON");
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name.c_str());
+        cJSON_AddStringToObject(root, "isIA", "TRUEIA");
+        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id.c_str());
+        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password.c_str());
+        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag.c_str());
+        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id.c_str());
+        for (int i = 1; i <= 3; ++i) {
+            std::string device_id_str = std::to_string(i);
+            const Device* dev = StorageManager::getDevice(device_id_str);
+            if (dev) {
+                cJSON_AddStringToObject(root, ("dTipo" + device_id_str).c_str(), std::to_string(dev->type).c_str());
+                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), dev->name.c_str());
+                cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), std::to_string(dev->time).c_str());
+            } else {
+                ESP_LOGW(TAG, "Dispositivo interno %d não encontrado.", i);
+                cJSON_AddStringToObject(root, ("dTipo" + device_id_str).c_str(), "0");
+                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), "");
+                cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), "0");
+            }
+        }
+        if(GlobalConfigData::cfg->is_connected_sta=="1"){
+            cJSON_AddStringToObject(root, "conexao", "con");
+        } else {
+            cJSON_AddStringToObject(root, "conexao", "dis");
+        }
+        cJSON_AddStringToObject(root, "ssid", GlobalConfigData::cfg->ssid.c_str());
+        char* json_string = cJSON_PrintUnformatted(root);
+        if (!json_string) {
+            ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");
+            cJSON_Delete(root);
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, json_string);
+        ESP_LOGI(TAG, "Servido /GET/info: %s", json_string);
+        cJSON_Delete(root);
+        free(json_string);
         return ESP_OK;
     }
     static esp_err_t set_info_handler(httpd_req_t* req) {
