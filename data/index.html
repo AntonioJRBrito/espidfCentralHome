@@ -81,7 +81,7 @@
         function login(event){
           event.preventDefault();        
           const inpLogin=document.getElementById('inpSenha').value=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`senha=${encodeURIComponent(inpLogin)}`})
+          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'text/plain'},body:inpLogin})
           .then(res=>res.text())
           .then(data=>{if(data.startsWith("sucesso:")){showDiv('divIndex');}else{alert("ERRO! Senha incorreta!");}})
           .catch(err=>{showMessage('erroCom');});

@@ -11,6 +11,8 @@
 #include "esp_http_server.h"
 #include "esp_netif.h"
 #include "cJSON.h"
+#include "bootloader_random.h"
+#include "esp_random.h"
 
 namespace WebManager {
     esp_err_t init();

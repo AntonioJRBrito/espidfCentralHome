@@ -6,6 +6,9 @@ namespace WebManager {
     static httpd_handle_t server = nullptr;
     static httpd_uri_t uri_handlers[30];
     static int uri_count = 0;
+    static uint32_t gerarTokenNumerico() {
+        return 10000000 + (esp_random() % 90000000);
+    }
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
@@ -86,9 +89,42 @@ namespace WebManager {
         return ESP_OK;
     }
     static esp_err_t login_auth_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "POST /GET/login");
-        // TODO: Implementar lógica de autenticação
-        httpd_resp_sendstr(req, "Login attempt placeholder");
+        ESP_LOGI(TAG, "POST /GET/login (senha pura)");
+        std::string response_str = "erro";
+        size_t content_len = req->content_len;
+        char* content_buf = nullptr;
+        if (content_len == 0) {
+            ESP_LOGW(TAG, "Corpo da requisição POST vazio para /GET/login.");
+        } else {
+            content_buf = (char*)malloc(content_len + 1);
+            if (content_buf == nullptr) {
+                ESP_LOGE(TAG, "Falha ao alocar memória para o corpo da requisição.");
+            } else {
+                int ret = httpd_req_recv(req, content_buf, content_len);
+                if (ret <= 0) {
+                    if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                        httpd_resp_send_408(req);
+                    }
+                    ESP_LOGE(TAG, "Falha ao ler corpo da requisição POST: %s", esp_err_to_name(ret));
+                } else {
+                    content_buf[ret] = '\0';
+                    std::string provided_password = content_buf;
+                    ESP_LOGD(TAG, "Senha recebida: '%s'", provided_password.c_str());
+                    if (GlobalConfigData::cfg && !GlobalConfigData::isBlankOrEmpty(GlobalConfigData::cfg->password) &&
+                        provided_password == GlobalConfigData::cfg->password) {
+                        uint32_t token = gerarTokenNumerico();
+                        response_str = "sucesso:" + std::to_string(token);
+                        ESP_LOGI(TAG, "Login bem-sucedido. Token gerado: %u", token);
+                    } else {
+                        response_str = "erro";
+                        ESP_LOGW(TAG, "Login falhou: senha incorreta ou não configurada.");
+                    }
+                }
+                free(content_buf);
+            }
+        }
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_send(req, response_str.c_str(), response_str.length());
         return ESP_OK;
     }
     static esp_err_t get_config_handler(httpd_req_t* req) {
