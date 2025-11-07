@@ -11,6 +11,7 @@
 struct WifiScanCache {
     std::string networks_html;
     time_t last_scan;
+    bool is_sta_connected;
 };
 
 struct GlobalConfig {
@@ -24,7 +25,6 @@ struct GlobalConfig {
     std::string token_id;
     std::string token_password;
     std::string token_flag;
-    std::string is_connected_sta;
     WifiScanCache wifi_cache;
 };
 namespace GlobalConfigData {

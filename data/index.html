@@ -18,6 +18,7 @@
         let tentativas=0;
         let timeoutId;
         const socket=new WebSocket(`ws://${location.host}/ws`);
+        const labelwifi=document.getElementById('labelNomewifi');
         // comportamentos
         document.getElementById('imgLogin').addEventListener('click',showPass);
         document.getElementById('imgSenha').addEventListener('click',showPass);
@@ -83,7 +84,7 @@
           const inpLogin=document.getElementById('inpSenha').value=document.getElementById('inpLogin').value;
           fetch("/GET/login",{method:"POST",headers:{'Content-Type':'text/plain'},body:inpLogin})
           .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){showDiv('divIndex');}else{alert("ERRO! Senha incorreta!");}})
+          .then(data=>{if(data.startsWith("sucesso:")){labelwifi.style.color="green";showDiv('divIndex');}else{alert("ERRO! Senha incorreta!");}})
           .catch(err=>{showMessage('erroCom');});
         };
         function central() {
@@ -131,11 +132,13 @@
             document.getElementById('inpPassTk').value=data.passToken;
             document.getElementById('userTk').value=data.userToken;
             document.getElementById('tokenFixo').value=data.token;
+            rede_conectada=data.ssid;
+            if(rede_conectada.length>0){labelwifi.style.color="red";}
+            else{labelwifi.style.color="white";}
             if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
             else{document.getElementById('authInterno').checked=true;}
             updateAuthMode();
-            if(data.conexao==="con"){labelwifi.style.color="green";rede_conectada=data.ssid;showDiv('divLogin');}
-            else{showDiv('divIndex');}
+            if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
             showTime1();
             showTime2();
             showTime3();
@@ -219,7 +222,7 @@
     <div id="divLogin" class="util">
       <form id="formLogin" action="login">
         <div class="form-group">
-          <label for="inpLogin">Senha do WiFi Conectado:</label>
+          <label for="inpLogin" id="labelLogin">Senha do WiFi conectado:</label>
           <div class="input-with-image">
             <input type="password" name="inpLogin" id="inpLogin" maxlength="50">
             <div id="imgLogin" class="img-over-input"></div>
@@ -248,11 +251,11 @@
     <div id="divIndex" class="util">
       <form name="formWIFI" id="formWIFI" action="/SET/wifi" method="GET">
         <div class="form-group">
-          <label for="nomewifi" id="labelwifi">Rede WiFi:</label>
+          <label for="nomewifi" id="labelNomewifi">Rede WiFi:</label>
           <select name="nomewifi" id="nomewifi" required maxlength="50"></select>
         </div>
         <div class="form-group">
-          <label for="inpSenha">Senha:</label>
+          <label for="inpSenha" id="labelSenha">Senha do WiFi:</label>
           <div class="input-with-image">
             <input type="password" required name="inpSenha" id="inpSenha" maxlength="50">
             <div id="imgSenha" class="img-over-input"></div>

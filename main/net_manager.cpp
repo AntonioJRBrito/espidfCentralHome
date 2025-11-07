@@ -107,7 +107,7 @@ namespace NetManager
                     break;
                 case WIFI_EVENT_STA_STOP:
                     ESP_LOGI(TAG, "WiFi STA parado");
-                    GlobalConfigData::cfg->is_connected_sta="0";
+                    GlobalConfigData::cfg->wifi_cache.is_sta_connected=false;
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STASTOPPED);
                     break;
                 case WIFI_EVENT_STA_CONNECTED:
@@ -115,7 +115,7 @@ namespace NetManager
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STACONNECTED);
                     break;
                 case WIFI_EVENT_STA_DISCONNECTED:
-                    GlobalConfigData::cfg->is_connected_sta="0";
+                    GlobalConfigData::cfg->wifi_cache.is_sta_connected=false;
                     if (s_isTestConnection) {
                         ESP_LOGW(TAG, "[TESTE] Falha ao conectar à rede fornecida.");
                         EventBus::post(EventDomain::NETWORK, EventId::NET_TESTFAILED);
@@ -196,13 +196,13 @@ namespace NetManager
             switch (id)
             {
                 case IP_EVENT_AP_STAIPASSIGNED:
-                    // ESP_LOGI(TAG, "Cliente conectado ao AP");
-                    // EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
-                    // break;
+                    ESP_LOGI(TAG, "Cliente conectado ao AP");
+                    EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
+                    break;
                 case IP_EVENT_STA_GOT_IP:
                     ESP_LOGI(TAG, "STA obteve IP.");
                     s_retry_count = 0;
-                    GlobalConfigData::cfg->is_connected_sta="1";
+                    GlobalConfigData::cfg->wifi_cache.is_sta_connected=true;
                     if (s_isTestConnection) {
                         ESP_LOGI(TAG, "[TESTE] Rede válida. IP obtido com sucesso!");
                         EventBus::post(EventDomain::NETWORK, EventId::NET_TESTSUCCESS);

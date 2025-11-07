@@ -62,12 +62,13 @@ namespace WebManager {
                 cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), "0");
             }
         }
-        if(GlobalConfigData::cfg->is_connected_sta=="1"){
+        if(GlobalConfigData::cfg->wifi_cache.is_sta_connected){
             cJSON_AddStringToObject(root, "conexao", "con");
         } else {
             cJSON_AddStringToObject(root, "conexao", "dis");
         }
-        cJSON_AddStringToObject(root, "ssid", GlobalConfigData::cfg->ssid.c_str());
+        const char* ssid_value = GlobalConfigData::cfg->ssid.empty() ? "" : GlobalConfigData::cfg->ssid.c_str();
+        cJSON_AddStringToObject(root, "ssid", ssid_value);
         char* json_string = cJSON_PrintUnformatted(root);
         if (!json_string) {
             ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");
@@ -120,8 +121,8 @@ namespace WebManager {
                         ESP_LOGW(TAG, "Login falhou: senha incorreta ou não configurada.");
                     }
                 }
-                free(content_buf);
             }
+            free(content_buf);
         }
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_send(req, response_str.c_str(), response_str.length());
