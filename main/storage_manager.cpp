@@ -47,8 +47,8 @@ namespace StorageManager {
             case EventId::STO_QUERY:
                 ESP_LOGI(TAG, "Recebido STO_QUERY");
                 break;
-            case EventId::STO_UPDATE_REQ:
-                ESP_LOGI(TAG, "Recebido STO_UPDATE_REQ");
+            case EventId::STO_UPDATE:
+                ESP_LOGI(TAG, "Recebido STO_UPDATE");
                 break;
             default:
                 break;

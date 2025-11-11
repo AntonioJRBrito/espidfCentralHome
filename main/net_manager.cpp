@@ -14,12 +14,14 @@ namespace NetManager
     static esp_err_t connectSTA(const char* testSsid = nullptr, const char* testPass = nullptr, bool isTest = false)
     {
         s_isTestConnection = isTest;
-        const char* ssidToUse = testSsid ? testSsid : GlobalConfigData::cfg->ssid.c_str();
-        const char* passToUse = testPass ? testPass : GlobalConfigData::cfg->password.c_str();
+        const char* ssidToUse = testSsid ? testSsid : GlobalConfigData::cfg->ssid;
+        const char* passToUse = testPass ? testPass : GlobalConfigData::cfg->password;
         ESP_LOGI(TAG, "%s conexão STA... (SSID: %s)",s_isTestConnection ? "Testando" : "Iniciando", ssidToUse);
         wifi_config_t sta_cfg{};
         strncpy((char*)sta_cfg.sta.ssid, ssidToUse, sizeof(sta_cfg.sta.ssid) - 1);
+        sta_cfg.sta.ssid[sizeof(sta_cfg.sta.ssid) - 1] = '\0';
         strncpy((char*)sta_cfg.sta.password, passToUse, sizeof(sta_cfg.sta.password) - 1);
+        sta_cfg.sta.password[sizeof(sta_cfg.sta.password) - 1] = '\0';
         sta_cfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
         sta_cfg.sta.pmf_cfg.capable = true;
         sta_cfg.sta.pmf_cfg.required = false;
@@ -36,42 +38,39 @@ namespace NetManager
     static void onEventReadyBus(void*,esp_event_base_t base,int32_t id,void*)
     {
         if(static_cast<EventId>(id)==EventId::READY_ALL){
-            EventBus::post(EventDomain::NETWORK, EventId::NET_IFOK);
-            ESP_LOGI(TAG, "NET_IFOK enviado");
+            if (startAP() != ESP_OK) {
+                ESP_LOGE(TAG, "Falha ao criar AP após READY_ALL.");
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(300));
+                EventBus::post(EventDomain::NETWORK, EventId::NET_IFOK);
+                ESP_LOGI(TAG, "→ NET_IFOK publicado após AP iniciar.");
+            }
         }
     }
     static void onEventNetworkBus(void*,esp_event_base_t base,int32_t id,void* data)
     {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_LISTQRY) {
-            if(data){memcpy(&s_requesting_fd,data,sizeof(int));ESP_LOGI(TAG,"Pedido de lista WiFi recebido (fd=%d)",s_requesting_fd);}
-            else{ESP_LOGW(TAG,"Pedido de lista WiFi sem fd válido!");s_requesting_fd = -1;}
+            if (data) {memcpy(&s_requesting_fd, data, sizeof(int));ESP_LOGI(TAG, "Pedido de lista WiFi recebido (fd=%d)", s_requesting_fd);}
+            else {s_requesting_fd = -1; ESP_LOGW(TAG, "Pedido de lista WiFi sem FD válido.");}
             if (GlobalConfigData::isWifiCacheValid()) {
-                ESP_LOGI(TAG, "Cache WiFi válido, enviando imediatamente");
-                EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK,&s_requesting_fd, sizeof(int));
-                s_requesting_fd = -1;
+                ESP_LOGI(TAG, "Cache WiFi válido, respondendo imediatamente.");
+                if (s_requesting_fd != -1) {EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK, &s_requesting_fd, sizeof(int));s_requesting_fd = -1;}
             } else {
-                if (s_scan_in_progress) {
-                    ESP_LOGW(TAG, "Scan já em progresso, aguardando...");
-                } else {
-                    ESP_LOGI(TAG, "Cache inválido, iniciando scan WiFi...");
-                    s_scan_in_progress = true;
-                    wifi_scan_config_t scan_config = {
-                        .ssid = nullptr,
-                        .bssid = nullptr,
-                        .channel = 0,
-                        .show_hidden = true,
-                        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
-                        .scan_time = { .active = { .min = 100, .max = 300 } }
-                    };
-                    esp_err_t ret = esp_wifi_scan_start(&scan_config, false);  // false = não bloqueante
-                    if (ret != ESP_OK) {
-                        ESP_LOGE(TAG, "Falha ao iniciar scan: %s", esp_err_to_name(ret));
-                        s_scan_in_progress = false;
-                        GlobalConfigData::updateWifiCache("<option value=''>Erro ao buscar redes</option>");
-                        EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL,&s_requesting_fd,sizeof(int));
-                        s_requesting_fd = -1;
-                    }
+                ESP_LOGI(TAG, "Cache WiFi inválido ou expirado, iniciando scan...");
+                GlobalConfigData::invalidateWifiCache();
+                wifi_scan_config_t scan_config = {
+                    .ssid = nullptr,
+                    .bssid = nullptr,
+                    .channel = 0,
+                    .show_hidden = true,
+                    .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+                    .scan_time = {.active = {.min = 100, .max = 1500}}
+                };
+                esp_err_t ret = esp_wifi_scan_start(&scan_config, false);
+                if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Falha ao iniciar scan WiFi: %s", esp_err_to_name(ret));
+                    if (s_requesting_fd != -1) {EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL, &s_requesting_fd, sizeof(int));s_requesting_fd = -1;}
                 }
             }
         }
@@ -152,39 +151,56 @@ namespace NetManager
                     s_scan_in_progress = false;
                     uint16_t num_networks = 0;
                     esp_wifi_scan_get_ap_num(&num_networks);
+                    char* buffer_ptr = GlobalConfigData::cfg->wifi_cache.networks_html_ptr;
+                    size_t buffer_capacity = MAX_HTML_OPTIONS_BUFFER_SIZE;
+                    size_t current_offset = 0;
+                    int written_chars = 0;
+                    if (buffer_capacity > 0) {buffer_ptr[0] = '\0';}
+                    wifi_ap_record_t* ap_records = nullptr;
                     if (num_networks == 0) {
                         ESP_LOGW(TAG, "Nenhuma rede encontrada");
-                        GlobalConfigData::updateWifiCache("<option value=''>Nenhuma rede encontrada</option>");
-                        if (s_requesting_fd != -1) {EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK, &s_requesting_fd, sizeof(int));s_requesting_fd = -1;}
-                        return;
+                        const char* no_networks_msg = "listNet<option value=''>Nenhuma rede encontrada</option>";
+                        written_chars = snprintf(buffer_ptr + current_offset, buffer_capacity - current_offset, "%s", no_networks_msg);
+                        if (written_chars > 0 && (size_t)written_chars < buffer_capacity - current_offset) {current_offset += written_chars;}
+                        goto cleanup_and_post;
                     }
-                    wifi_ap_record_t* ap_records = (wifi_ap_record_t*)malloc(sizeof(wifi_ap_record_t) * num_networks);
+                    ap_records = (wifi_ap_record_t*)malloc(sizeof(wifi_ap_record_t) * num_networks);
                     if (!ap_records) {
-                        ESP_LOGE(TAG, "Falha ao alocar memória para scan");
-                        GlobalConfigData::updateWifiCache("<option value=''>Erro de memória</option>");
-                        if (s_requesting_fd != -1) {EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL, &s_requesting_fd, sizeof(int));s_requesting_fd = -1;}
-                        return;
+                        ESP_LOGE(TAG, "Falha ao alocar memória para registros de scan.");
+                        const char* error_msg = "listNet<option value=''>Erro de memória ao buscar redes</option>";
+                        written_chars = snprintf(buffer_ptr + current_offset, buffer_capacity - current_offset, "%s", error_msg);
+                        if (written_chars > 0 && (size_t)written_chars < buffer_capacity - current_offset) {current_offset += written_chars;}
+                        EventBus::post(EventDomain::NETWORK, EventId::NET_LISTFAIL, &s_requesting_fd, sizeof(int));
+                        s_requesting_fd = -1;
+                        goto cleanup_and_post;
                     }
+                    written_chars = snprintf(buffer_ptr + current_offset, buffer_capacity - current_offset, "listNet");
+                    current_offset += written_chars;
                     esp_wifi_scan_get_ap_records(&num_networks, ap_records);
                     ESP_LOGI(TAG, "Scan encontrou %d redes", num_networks);
-                    std::string html_options;
-                    std::string current_ssid = GlobalConfigData::cfg->ssid;
-                    if (!current_ssid.empty()) {ESP_LOGI(TAG, "SSID atual configurado: %s", current_ssid.c_str()); }
+                    char current_ssid_char[MAX_SSIDWAN_LEN];
+                    strncpy(current_ssid_char, GlobalConfigData::cfg->ssid, sizeof(current_ssid_char) - 1);
+                    current_ssid_char[sizeof(current_ssid_char) - 1] = '\0';
+                    if (!GlobalConfigData::isBlankOrEmpty(current_ssid_char)) {ESP_LOGI(TAG, "SSID atual configurado: %s", current_ssid_char);}
                     for (uint16_t i = 0; i < num_networks; i++) {
-                        std::string ssid = (char*)ap_records[i].ssid;
-                        bool is_current = (ssid == current_ssid);
-                        if (is_current) {ESP_LOGI(TAG, "Rede atual encontrada: %s", ssid.c_str());}
-                        html_options += "<option value='" + ssid + "'";
-                        if (is_current) {html_options += " selected";}
-                        html_options += ">" + ssid + "</option>";
+                        char ssid_temp_char[sizeof(ap_records[i].ssid)];
+                        strncpy(ssid_temp_char, (char*)ap_records[i].ssid, sizeof(ssid_temp_char) - 1);
+                        ssid_temp_char[sizeof(ssid_temp_char) - 1] = '\0';
+                        if (GlobalConfigData::isBlankOrEmpty(ssid_temp_char)) {ESP_LOGD(TAG, "Pulando rede com SSID vazio.");continue;}
+                        bool is_current = (strcmp(ssid_temp_char, current_ssid_char) == 0);
+                        if(is_current){written_chars=snprintf(buffer_ptr+current_offset,buffer_capacity-current_offset,"<option value='%s' selected>%s</option>",ssid_temp_char,ssid_temp_char);}
+                        else{written_chars=snprintf(buffer_ptr+current_offset,buffer_capacity-current_offset,"<option value='%s'>%s</option>",ssid_temp_char,ssid_temp_char);}
+                        if(written_chars>0 && (size_t)written_chars<buffer_capacity-current_offset){current_offset+=written_chars;}
+                        else{ESP_LOGW(TAG, "Buffer de cache WiFi cheio ou erro de escrita. Parando de adicionar redes.");break;}
                     }
-                    GlobalConfigData::updateWifiCache(html_options);
-                    ESP_LOGI(TAG, "Cache WiFi atualizado: %zu redes", num_networks);
-                    if (s_requesting_fd != -1) {
-                        EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK, &s_requesting_fd, sizeof(int));
-                        s_requesting_fd = -1;
-                    }
-                    free(ap_records);
+                    if (current_offset < buffer_capacity) {buffer_ptr[current_offset] = '\0';}
+                    else if (buffer_capacity > 0) {buffer_ptr[buffer_capacity - 1] = '\0';}
+                    GlobalConfigData::cfg->wifi_cache.networks_html_len = current_offset;
+                    GlobalConfigData::cfg->wifi_cache.last_scan = time(nullptr);
+                    ESP_LOGI(TAG, "Cache WiFi atualizado com %zu bytes.", GlobalConfigData::cfg->wifi_cache.networks_html_len);
+                cleanup_and_post:
+                    if(s_requesting_fd!=-1){EventBus::post(EventDomain::NETWORK,EventId::NET_LISTOK,&s_requesting_fd,sizeof(int));s_requesting_fd=-1;}
+                    if(ap_records){free(ap_records);}
                     break;
                 }
                 default:
@@ -195,11 +211,14 @@ namespace NetManager
         {
             switch (id)
             {
-                case IP_EVENT_AP_STAIPASSIGNED:
+                case IP_EVENT_AP_STAIPASSIGNED: {
                     ESP_LOGI(TAG, "Cliente conectado ao AP");
                     EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);
                     break;
-                case IP_EVENT_STA_GOT_IP:
+                }
+                case IP_EVENT_STA_GOT_IP: {
+                    ip_event_got_ip_t* event = (ip_event_got_ip_t*)data;
+                    snprintf(GlobalConfigData::cfg->ip, sizeof(GlobalConfigData::cfg->ip), IPSTR, IP2STR(&event->ip_info.ip));
                     ESP_LOGI(TAG, "STA obteve IP.");
                     s_retry_count = 0;
                     GlobalConfigData::cfg->wifi_cache.is_sta_connected=true;
@@ -209,12 +228,13 @@ namespace NetManager
                         s_isTestConnection = false;
                     } else {EventBus::post(EventDomain::NETWORK, EventId::NET_STAGOTIP);}
                     break;
+                }
                 default:
                     break;
             }
         }
     }
-    static esp_err_t startAP()
+    esp_err_t startAP()
     {
         // --- Inicialização do NVS ---
         esp_err_t ret = nvs_flash_init();
@@ -237,13 +257,14 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_wifi_init(&cfg));
         // --- Registra handlers de evento ---
         ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
-        ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT,   ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
+        ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
         // --- Lê o MAC (caso precise para compor o SSID) ---
-        uint8_t mac[6];
-        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        // uint8_t mac[6];
+        // esp_read_mac(mac, ESP_MAC_WIFI_STA);
         // --- Configura o Access Point ---
         wifi_config_t ap_cfg{};
-        strncpy((char*)ap_cfg.ap.ssid, GlobalConfigData::cfg->hostname.c_str(), sizeof(ap_cfg.ap.ssid));
+        strncpy((char*)ap_cfg.ap.ssid, GlobalConfigData::cfg->central_name, sizeof(ap_cfg.ap.ssid) - 1);
+        ap_cfg.ap.ssid[sizeof(ap_cfg.ap.ssid) - 1] = '\0';
         ap_cfg.ap.ssid_len = strlen((char*)ap_cfg.ap.ssid);
         ap_cfg.ap.channel = 1;
         ap_cfg.ap.max_connection = 4;
@@ -263,15 +284,16 @@ namespace NetManager
         EventBus::regHandler(EventDomain::NETWORK, &onEventNetworkBus, nullptr);
         EventBus::regHandler(EventDomain::STORAGE, &onEventStorageBus, nullptr);
         EventBus::regHandler(EventDomain::READY, &onEventReadyBus, nullptr);
-        if (startAP() != ESP_OK){
-            ESP_LOGE(TAG, "Falha ao criar AP");
-            return ESP_FAIL;
-        }else{
-            vTaskDelay(pdMS_TO_TICKS(300));
-            EventBus::post(EventDomain::READY, EventId::NET_READY);
-            ESP_LOGI(TAG, "→ NET_READY publicado");
-        }
-        ESP_LOGI(TAG, "NetManager inicializado (AP ativo, NET_READY enviado)");
+        EventBus::post(EventDomain::READY, EventId::NET_READY);
+        // if (startAP() != ESP_OK){
+        //     ESP_LOGE(TAG, "Falha ao criar AP");
+        //     return ESP_FAIL;
+        // }else{
+        //     vTaskDelay(pdMS_TO_TICKS(300));
+        //     EventBus::post(EventDomain::READY, EventId::NET_READY);
+        //     ESP_LOGI(TAG, "→ NET_READY publicado");
+        // }
+        ESP_LOGI(TAG, "NetManager inicializado (aguardando READY_ALL para iniciar AP)");
         return ESP_OK;
     }
 }

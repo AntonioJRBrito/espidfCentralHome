@@ -84,25 +84,20 @@ namespace SocketManager {
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         int client_fd = -1;
-        if (data) {memcpy(&client_fd, data, sizeof(int));ESP_LOGD(TAG, "onNetworkEvent: fd=%d, evt=%d", client_fd, (int)evt);}
+        if(data){memcpy(&client_fd,data,sizeof(int));ESP_LOGD(TAG,"onNetworkEvent: fd=%d, evt=%d",client_fd,(int)evt);}
         if (evt == EventId::NET_LISTOK) {
             ESP_LOGI(TAG, "NET_LISTOK recebido para fd=%d", client_fd);
-            const std::string& html_options = GlobalConfigData::getWifiCache();
-            if (!html_options.empty()) {
-                std::string response = "listNet" + html_options;
-                esp_err_t ret = sendToClient(client_fd, response.c_str());
-                if (ret == ESP_OK) {ESP_LOGI(TAG, "Lista WiFi enviada para fd=%d (%zu bytes)", client_fd, response.length());}
+            const char* html_content = GlobalConfigData::cfg->wifi_cache.networks_html_ptr;
+            size_t content_len = GlobalConfigData::cfg->wifi_cache.networks_html_len;
+            if (content_len > 0) {
+                esp_err_t ret = sendToClient(client_fd, html_content);
+                if (ret == ESP_OK) {ESP_LOGI(TAG, "Lista WiFi enviada para fd=%d (%zu bytes)", client_fd, content_len);}
                 else {ESP_LOGE(TAG, "Falha ao enviar lista para fd=%d: %s", client_fd, esp_err_to_name(ret));}
             } else {
                 ESP_LOGW(TAG, "Cache WiFi vazio para fd=%d", client_fd);
-                sendToClient(client_fd, "listNet<option value=''>Erro: cache vazio</option>");
+                const char* error_msg = "listNet<option value=''>Erro: cache vazio</option>";
+                sendToClient(client_fd, error_msg);
             }
-        }
-        else if (evt == EventId::NET_LISTFAIL) {
-            ESP_LOGW(TAG, "NET_LISTFAIL recebido para fd=%d", client_fd);
-            std::string error_response = "listNet<option value=''>Erro ao buscar redes WiFi</option>";
-            sendToClient(client_fd, error_response.c_str());
-            ESP_LOGW(TAG, "Erro de lista enviado para fd=%d", client_fd);
         }
         else {
             ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);
@@ -177,10 +172,9 @@ namespace SocketManager {
     // Inicialização
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Socket Manager...");
-        // Registra handler de eventos
         EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
-        EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr); 
+        EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         EventBus::post(EventDomain::READY, EventId::SOC_READY);
         ESP_LOGI(TAG, "→ SOC_READY publicado");
         return ESP_OK;

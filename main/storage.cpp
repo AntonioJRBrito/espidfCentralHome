@@ -30,12 +30,12 @@ namespace Storage {
         while (fgets(line, sizeof(line), f)) {
             line[strcspn(line, "\r\n")] = 0;
             switch (index) {
-                case 0: if (*line) GlobalConfigData::cfg->ssid = line; break;
-                case 1: if (*line) GlobalConfigData::cfg->password = line; break;
-                case 2: if (*line) GlobalConfigData::cfg->central_name = line; break;
-                case 3: if (*line) GlobalConfigData::cfg->token_id = line; break;
-                case 4: if (*line) GlobalConfigData::cfg->token_password = line; break;
-                case 5: if (*line) GlobalConfigData::cfg->token_flag = line; break;
+                case 0: if (*line) { strncpy(GlobalConfigData::cfg->ssid, line, sizeof(GlobalConfigData::cfg->ssid) - 1); GlobalConfigData::cfg->ssid[sizeof(GlobalConfigData::cfg->ssid) - 1] = '\0'; } break;
+                case 1: if (*line) { strncpy(GlobalConfigData::cfg->password, line, sizeof(GlobalConfigData::cfg->password) - 1); GlobalConfigData::cfg->password[sizeof(GlobalConfigData::cfg->password) - 1] = '\0'; } break;
+                case 2: if (*line) { strncpy(GlobalConfigData::cfg->central_name, line, sizeof(GlobalConfigData::cfg->central_name) - 1); GlobalConfigData::cfg->central_name[sizeof(GlobalConfigData::cfg->central_name) - 1] = '\0'; } break;
+                case 3: if (*line) { strncpy(GlobalConfigData::cfg->token_id, line, sizeof(GlobalConfigData::cfg->token_id) - 1); GlobalConfigData::cfg->token_id[sizeof(GlobalConfigData::cfg->token_id) - 1] = '\0'; } break;
+                case 4: if (*line) { strncpy(GlobalConfigData::cfg->token_password, line, sizeof(GlobalConfigData::cfg->token_password) - 1); GlobalConfigData::cfg->token_password[sizeof(GlobalConfigData::cfg->token_password) - 1] = '\0'; } break;
+                case 5: if (*line) { strncpy(GlobalConfigData::cfg->token_flag, line, sizeof(GlobalConfigData::cfg->token_flag) - 1); GlobalConfigData::cfg->token_flag[sizeof(GlobalConfigData::cfg->token_flag) - 1] = '\0'; } break;
             }
             ++index;
         }

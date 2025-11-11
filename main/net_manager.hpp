@@ -14,8 +14,16 @@
 #include "lwip/lwip_napt.h"
 #include "lwip/netif.h"
 #include "lwip/esp_netif_net_stack.h"
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdio>
+#include <cstddef>
+#include "esp_heap_caps.h"
+#include <algorithm>
 
 namespace NetManager
 {
     esp_err_t init();
+    static esp_err_t startAP();
 }

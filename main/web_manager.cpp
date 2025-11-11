@@ -42,12 +42,12 @@ namespace WebManager {
             httpd_resp_send_500(req);
             return ESP_FAIL;
         }
-        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name.c_str());
+        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name);
         cJSON_AddStringToObject(root, "isIA", "TRUEIA");
-        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id.c_str());
-        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password.c_str());
-        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag.c_str());
-        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id.c_str());
+        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id);
+        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password);
+        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag);
+        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id);
         for (int i = 1; i <= 3; ++i) {
             std::string device_id_str = std::to_string(i);
             const Device* dev = StorageManager::getDevice(device_id_str);
@@ -67,7 +67,7 @@ namespace WebManager {
         } else {
             cJSON_AddStringToObject(root, "conexao", "dis");
         }
-        const char* ssid_value = GlobalConfigData::cfg->ssid.empty() ? "" : GlobalConfigData::cfg->ssid.c_str();
+        const char* ssid_value = (strlen(GlobalConfigData::cfg->ssid) == 0) ? "" : GlobalConfigData::cfg->ssid;
         cJSON_AddStringToObject(root, "ssid", ssid_value);
         char* json_string = cJSON_PrintUnformatted(root);
         if (!json_string) {
