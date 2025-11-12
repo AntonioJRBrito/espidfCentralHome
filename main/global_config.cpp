@@ -33,7 +33,6 @@ namespace GlobalConfigData{
         memset(cfg->mac, 0, sizeof(cfg->mac));
         memset(cfg->id, 0, sizeof(cfg->id));
         memset(cfg->ip, 0, sizeof(cfg->ip));
-        memset(cfg->hostname, 0, sizeof(cfg->hostname));
         memset(cfg->ssid, 0, sizeof(cfg->ssid));
         memset(cfg->password, 0, sizeof(cfg->password));
         memset(cfg->central_name, 0, sizeof(cfg->central_name));
@@ -44,11 +43,9 @@ namespace GlobalConfigData{
         esp_read_mac(mac, ESP_MAC_WIFI_STA);
         snprintf(cfg->mac, sizeof(cfg->mac), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         snprintf(cfg->id, sizeof(cfg->id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        snprintf(cfg->hostname, sizeof(cfg->hostname), "CTR_%s", cfg->id);
         strncpy(cfg->token_flag, "0", sizeof(cfg->token_flag) - 1);
         cfg->token_flag[sizeof(cfg->token_flag) - 1] = '\0';
         ESP_LOGI(TAG, "GlobalConfig inicializado na PSRAM.");
-        ESP_LOGI(TAG, "MAC: %s, ID: %s, Hostname: %s", cfg->mac, cfg->id, cfg->hostname);
         return ESP_OK;
     }
         bool isWifiCacheValid() {

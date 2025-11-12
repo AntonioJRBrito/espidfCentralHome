@@ -9,6 +9,49 @@ namespace WebManager {
     static uint32_t gerarTokenNumerico() {
         return 10000000 + (esp_random() % 90000000);
     }
+    // Função para decodificar strings URL-encoded
+    std::string url_decode(const std::string& encoded_string) {
+        std::string decoded_string;
+        for (size_t i = 0; i < encoded_string.length(); ++i) {
+            if (encoded_string[i] == '%') {
+                if (i + 2 < encoded_string.length()) {
+                    char hex_char1 = encoded_string[i+1];
+                    char hex_char2 = encoded_string[i+2];
+                    char decoded_char = 0;
+                    if (hex_char1 >= '0' && hex_char1 <= '9') decoded_char = (hex_char1 - '0') << 4;
+                    else if (hex_char1 >= 'a' && hex_char1 <= 'f') decoded_char = (hex_char1 - 'a' + 10) << 4;
+                    else if (hex_char1 >= 'A' && hex_char1 <= 'F') decoded_char = (hex_char1 - 'A' + 10) << 4;
+                    if (hex_char2 >= '0' && hex_char2 <= '9') decoded_char |= (hex_char2 - '0');
+                    else if (hex_char2 >= 'a' && hex_char2 <= 'f') decoded_char |= (hex_char2 - 'a' + 10);
+                    else if (hex_char2 >= 'A' && hex_char2 <= 'F') decoded_char |= (hex_char2 - 'A' + 10);
+                    decoded_string += decoded_char;
+                    i += 2;
+                } else {
+                    decoded_string += encoded_string[i];
+                }
+            } else if (encoded_string[i] == '+') {
+                decoded_string += ' ';
+            } else {
+                decoded_string += encoded_string[i];
+            }
+        }
+        return decoded_string;
+    }
+    // Função para extrair um valor de um corpo de requisição POST URL-encoded
+    std::string extract_post_param(const std::string& body, const std::string& key) {
+        size_t start_pos = 0;
+        std::string search_key = key + "=";
+        while ((start_pos = body.find(search_key, start_pos)) != std::string::npos) {
+            if (start_pos == 0 || body[start_pos - 1] == '&') {
+                size_t value_start = start_pos + search_key.length();
+                size_t value_end = body.find('&', value_start);
+                std::string encoded_value = body.substr(value_start, value_end - value_start);
+                return url_decode(encoded_value);
+            }
+            start_pos += search_key.length();
+        }
+        return "";
+    }
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
@@ -85,7 +128,81 @@ namespace WebManager {
     }
     static esp_err_t set_info_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /SET/info");
-        // TODO: Implementar lógica para definir informações (ler corpo da requisição)
+        size_t total_len = req->content_len;
+        if (total_len == 0) {
+            ESP_LOGW(TAG, "Corpo da requisição POST vazio.");
+            httpd_resp_sendstr(req, "Corpo da requisição vazio.");
+            return ESP_OK;
+        }
+        char* buf = (char*)malloc(total_len + 1);
+        if (!buf) {
+            ESP_LOGE(TAG, "Falha ao alocar memória para o corpo da requisição.");
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+        int ret = httpd_req_recv(req, buf, total_len);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                httpd_resp_send_408(req);
+            } else {
+                ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);
+                httpd_resp_send_500(req);
+            }
+            free(buf);
+            return ESP_FAIL;
+        }
+        buf[total_len] = '\0';
+        ESP_LOGI(TAG, "Raw POST body received: '%s'", buf);
+        std::string post_body(buf);
+        free(buf);
+        CentralInfo received_info;
+        SSIDInfo received_SSIDinfo;
+        std::string value;
+        bool changeSSID=false;
+        value = extract_post_param(post_body, "nomewifi");
+        if (!value.empty()) {
+            changeSSID=true;
+            strncpy(received_SSIDinfo.ssid, value.c_str(), sizeof(received_SSIDinfo.ssid) - 1);
+            received_SSIDinfo.ssid[sizeof(received_SSIDinfo.ssid) - 1] = '\0';
+            ESP_LOGI(TAG, "SSID: %s", received_SSIDinfo.ssid);
+        }
+        value = extract_post_param(post_body, "inpSenha");
+        if (!value.empty()) {
+            strncpy(received_SSIDinfo.password, value.c_str(), sizeof(received_SSIDinfo.password) - 1);
+            received_SSIDinfo.password[sizeof(received_SSIDinfo.password) - 1] = '\0';
+            ESP_LOGI(TAG, "Password: %s", received_SSIDinfo.password);
+        }
+        value = extract_post_param(post_body, "cNome");
+        if (!value.empty()) {
+            strncpy(received_info.central_name, value.c_str(), sizeof(received_info.central_name) - 1);
+            received_info.central_name[sizeof(received_info.central_name) - 1] = '\0';
+            ESP_LOGI(TAG, "Central Name: %s", received_info.central_name);
+        }
+        value = extract_post_param(post_body, "userTk");
+        if (!value.empty()) {
+            strncpy(received_info.token_id, value.c_str(), sizeof(received_info.token_id) - 1);
+            received_info.token_id[sizeof(received_info.token_id) - 1] = '\0';
+            ESP_LOGI(TAG, "Token ID: %s", received_info.token_id);
+        }
+        value = extract_post_param(post_body, "inpPassTk");
+        if (!value.empty()) {
+            strncpy(received_info.token_password, value.c_str(), sizeof(received_info.token_password) - 1);
+            received_info.token_password[sizeof(received_info.token_password) - 1] = '\0';
+            ESP_LOGI(TAG, "Token Password: %s", received_info.token_password);
+        }
+        value = extract_post_param(post_body, "userChoice");
+        if (!value.empty()) {
+            strncpy(received_info.token_flag, value.c_str(), sizeof(received_info.token_flag) - 1);
+            received_info.token_flag[sizeof(received_info.token_flag) - 1] = '\0';
+            ESP_LOGI(TAG, "Token Flag: %s", received_info.token_flag);
+        }
+        esp_err_t err_ct = StorageManager::enqueueRequest(
+            StorageCommand::SAVE,
+            StorageStructType::CONFIG_DATA,
+            &received_info,
+            sizeof(CentralInfo)
+        );
+
         httpd_resp_sendstr(req, "SET info data placeholder");
         return ESP_OK;
     }
