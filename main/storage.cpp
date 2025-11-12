@@ -24,7 +24,7 @@ namespace Storage {
     static void loadGlobalConfigFile() {
         const char* path = "/littlefs/config/config";
         FILE* f = fopen(path, "r");
-        if(!f) {ESP_LOGW(TAG, "Arquivo ausente: %s", path);return;}
+        if(!f){ESP_LOGW(TAG, "Arquivo ausente: %s", path);return;}
         char line[128];
         int index = 0;
         while (fgets(line, sizeof(line), f)) {
@@ -41,6 +41,22 @@ namespace Storage {
         }
         fclose(f);
         ESP_LOGI(TAG, "Configuração /config/config carregada (%d linhas)", index);
+    }
+    esp_err_t saveGlobalConfigFile() {
+        ESP_LOGI(TAG, "Salvando GlobalConfig completa na LittleFS...");
+        const char* path = "/littlefs/config/config";
+        FILE* f = fopen(path, "w");
+        if(!f){ESP_LOGE(TAG, "Falha ao abrir arquivo LittleFS para escrita: %s", path);return ESP_FAIL;}
+        fprintf(f, "%s\n", GlobalConfigData::cfg->ssid);
+        fprintf(f, "%s\n", GlobalConfigData::cfg->password);
+        fprintf(f, "%s\n", GlobalConfigData::cfg->central_name);
+        fprintf(f, "%s\n", GlobalConfigData::cfg->token_id);
+        fprintf(f, "%s\n", GlobalConfigData::cfg->token_password);
+        fprintf(f, "%s\n", GlobalConfigData::cfg->token_flag);
+        if(ferror(f)){ESP_LOGE(TAG, "Erro de escrita no arquivo LittleFS: %s", path);fclose(f);return ESP_FAIL;}
+        fclose(f);
+        ESP_LOGI(TAG, "Configuração salva com sucesso em LittleFS: %s", path);
+        return ESP_OK;
     }
     static void loadDeviceFile(const char* path, const char* id) {
         FILE* f = fopen(path, "r");

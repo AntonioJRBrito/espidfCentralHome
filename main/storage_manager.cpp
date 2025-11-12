@@ -80,7 +80,9 @@ namespace StorageManager {
                                     GlobalConfigData::cfg->token_password[sizeof(GlobalConfigData::cfg->token_password) - 1] = '\0';
                                     strncpy(GlobalConfigData::cfg->token_flag, received.token_flag, sizeof(GlobalConfigData::cfg->token_flag) - 1);
                                     GlobalConfigData::cfg->token_flag[sizeof(GlobalConfigData::cfg->token_flag) - 1] = '\0';
-                                    // Atualaizar variável e salvar na flash
+                                    esp_err_t ret=Storage::saveGlobalConfigFile();
+                                    if (ret!=ESP_OK){ESP_LOGE(TAG, "Erro ao salvar CONFIG_DATA");}
+                                    else{ESP_LOGI(TAG, "CONFIG_DATA Salvo");}
                                     if (request.response_event_id != EventId::NONE) {EventBus::post(EventDomain::STORAGE, request.response_event_id, nullptr, 0);}
                                     break;
                                 }

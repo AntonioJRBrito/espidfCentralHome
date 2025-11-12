@@ -14,4 +14,5 @@
 
 namespace Storage {
     esp_err_t init();
+    esp_err_t saveGlobalConfigFile();
 }
