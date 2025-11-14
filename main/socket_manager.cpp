@@ -88,6 +88,16 @@ namespace SocketManager {
             ESP_LOGI(TAG, "Comando INFO recebido para fd=%d", fd);
             info(fd);
         }
+        else if (strncmp(message.c_str(),"CONFIG",6) == 0) {
+            const char* jsonString = message.c_str() + 6;
+            ESP_LOGI(TAG, "Comando CONFIG recebido para fd=%d", fd);
+            // info(fd);
+        }
+        else if (strncmp(message.c_str(),"CREDENTIAL",9) == 0) {
+            const char* jsonString = message.c_str() + 6;
+            ESP_LOGI(TAG, "Comando CREDENTIAL recebido para fd=%d", fd);
+            // info(fd);
+        }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
         return ret;

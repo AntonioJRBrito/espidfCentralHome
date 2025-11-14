@@ -115,36 +115,6 @@
           .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`atualizar.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
           .catch(err=>{showMessage('erroCom');});
         }
-        // function findInfo(){
-        //   fetch('/GET/info',{method:"POST"})
-        //   .then(response=>response.json())
-        //   .then(data=>{
-        //     document.getElementById('cNome').value=data.cNome;
-        //     document.getElementById('dNome1').value=data.dNome1;
-        //     document.getElementById('dTipo1').value=data.dTipo1;
-        //     document.getElementById('dTempo1').value=data.dTempo1;
-        //     document.getElementById('dNome2').value=data.dNome2;
-        //     document.getElementById('dTipo2').value=data.dTipo2;
-        //     document.getElementById('dTempo2').value=data.dTempo2;
-        //     document.getElementById('dNome3').value=data.dNome3;
-        //     document.getElementById('dTipo3').value=data.dTipo3;
-        //     document.getElementById('dTempo3').value=data.dTempo3;
-        //     document.getElementById('inpPassTk').value=data.passToken;
-        //     document.getElementById('userTk').value=data.userToken;
-        //     document.getElementById('tokenFixo').value=data.token;
-        //     rede_conectada=data.ssid;
-        //     if(rede_conectada.length>0){labelwifi.style.color="red";}
-        //     else{labelwifi.style.color="white";}
-        //     if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
-        //     else{document.getElementById('authInterno').checked=true;}
-        //     updateAuthMode();
-        //     if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
-        //     showTime1();
-        //     showTime2();
-        //     showTime3();
-        //   })
-        //   .catch(error=>{showMessage('erroDat');});
-        // };
         function showTime1(){
           if (document.getElementById('divTempo1')){divTempo1.style.display=(document.getElementById('dTipo1').value==='3') ? 'flex':'none';}
         }
@@ -157,39 +127,50 @@
         function netTest(event){
           showDiv('divAguarde');
           event.preventDefault();
-          const formOr=document.getElementById('formWIFI');
-          const formData=new FormData(formOr);
-          const wifiDeleted=(document.getElementById('nomewifi').value===rede_conectada);
-          if(wifiDeleted){
-            formData.delete('nomewifi');
-            formData.delete('inpSenha');
-          }
-          const params=new URLSearchParams();
-          for(const pair of formData.entries()){
-            params.append(pair[0],pair[1]);
-          }
-          if(wifiDeleted){
-            fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
-            .then(response=>{showMessage('sucesso');})
-            .catch(error=>{showMessage('erroCom');});
-          }else{
-            fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
-            .then(response=>{response.text().then(data=>{
-              if(data==="recebido"){
-                setTimeout(()=>{
-                  fetch('/GET/isok')
-                  .then(response=>{
-                    response.text().then(data=>{
-                      if(data==="error"){showMessage('erroSid')}
-                      else{showMessage('sucesso')}
-                    })})
-                  .catch(error=>{showMessage('erroCom')});
-                },15000);
-              }else{showMessage('erroCom')}
-            })})
-            .catch(error=>{showMessage('erroCom')});
-          }
-        };
+          const formWIFI=document.getElementById('formWIFI');
+          const formData=new FormData(formWIFI);
+          const dataToSend={};
+          for(const pair of formData.entries()){dataToSend[pair[0]]=pair[1];}
+          const message="CONFIG"+JSON.stringify(dataToSend);
+          socket.send(message);
+          timeoutId=setTimeout(()=>{showMessage('erroCom');timeoutId=null;},15000);
+        }
+        // function netTest(event){
+        //   showDiv('divAguarde');
+        //   event.preventDefault();
+        //   const formOr=document.getElementById('formWIFI');
+        //   const formData=new FormData(formOr);
+        //   const wifiDeleted=(document.getElementById('nomewifi').value===rede_conectada);
+        //   if(wifiDeleted){
+        //     formData.delete('nomewifi');
+        //     formData.delete('inpSenha');
+        //   }
+        //   const params=new URLSearchParams();
+        //   for(const pair of formData.entries()){
+        //     params.append(pair[0],pair[1]);
+        //   }
+        //   if(wifiDeleted){
+        //     fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
+        //     .then(response=>{showMessage('sucesso');})
+        //     .catch(error=>{showMessage('erroCom');});
+        //   }else{
+        //     fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
+        //     .then(response=>{response.text().then(data=>{
+        //       if(data==="recebido"){
+        //         setTimeout(()=>{
+        //           fetch('/GET/isok')
+        //           .then(response=>{
+        //             response.text().then(data=>{
+        //               if(data==="error"){showMessage('erroSid')}
+        //               else{showMessage('sucesso')}
+        //             })})
+        //           .catch(error=>{showMessage('erroCom')});
+        //         },15000);
+        //       }else{showMessage('erroCom')}
+        //     })})
+        //     .catch(error=>{showMessage('erroCom')});
+        //   }
+        // };
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("listNet")){
@@ -199,6 +180,25 @@
                 document.getElementById('nomewifi').innerHTML='<option value="" disabled selected>Selecione uma rede</option>'+msg;
                 socket.send("INFO");
               }
+            }
+            if(event.data.startsWith("configOk")){
+              clearTimeout(timeoutId);
+              const currentSelectedWifi=document.getElementById('nomewifi').value;
+              const wifiChanged=(currentSelectedWifi!==rede_conectada);
+              if(wifiChanged){
+                const dataToSend={};
+                dataToSend['nomewifi']=document.getElementById('nomewifi');
+                dataToSend['inpSenha']=document.getElementById('inpSenha');
+                const message="CREDENTIAL"+JSON.stringify(dataToSend);
+                socket.send(message);
+                timeoutId=setTimeout(()=>{showMessage('erroSid');timeoutId=null;},30000);
+              }else{
+                showMessage('sucesso');
+              }
+            }
+            if(event.data.startsWith("credentialOk")){
+              clearTimeout(timeoutId);
+              showMessage('sucesso');
             }
             if(event.data.startsWith("listInfo")){
               clearTimeout(timeoutId);

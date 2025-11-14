@@ -77,82 +77,82 @@ namespace WebManager {
         return ESP_OK;
     }
     // --- Handlers para configuração e controle da central ---
-    static esp_err_t set_info_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "POST /SET/info");
-        size_t total_len = req->content_len;
-        if (total_len == 0) {
-            ESP_LOGW(TAG, "Corpo da requisição POST vazio.");
-            httpd_resp_sendstr(req, "Corpo da requisição vazio.");
-            return ESP_OK;
-        }
-        char* buf = (char*)malloc(total_len + 1);
-        if (!buf) {
-            ESP_LOGE(TAG, "Falha ao alocar memória para o corpo da requisição.");
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
-        }
-        int ret = httpd_req_recv(req, buf, total_len);
-        if (ret <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {httpd_resp_send_408(req);}
-            else {ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);httpd_resp_send_500(req);}
-            free(buf);
-            return ESP_FAIL;
-        }
-        buf[total_len] = '\0';
-        ESP_LOGI(TAG, "Raw POST body received: '%s'", buf);
-        std::string post_body(buf);
-        free(buf);
-        CentralInfo received_info;
-        SSIDInfo received_SSIDinfo;
-        std::string value;
-        bool changeSSID=false;
-        value = extract_post_param(post_body, "nomewifi");
-        if (!value.empty()) {
-            changeSSID=true;
-            strncpy(received_SSIDinfo.ssid, value.c_str(), sizeof(received_SSIDinfo.ssid) - 1);
-            received_SSIDinfo.ssid[sizeof(received_SSIDinfo.ssid) - 1] = '\0';
-            ESP_LOGI(TAG, "SSID: %s", received_SSIDinfo.ssid);
-        }
-        value = extract_post_param(post_body, "inpSenha");
-        if (!value.empty()) {
-            strncpy(received_SSIDinfo.password, value.c_str(), sizeof(received_SSIDinfo.password) - 1);
-            received_SSIDinfo.password[sizeof(received_SSIDinfo.password) - 1] = '\0';
-            ESP_LOGI(TAG, "Password: %s", received_SSIDinfo.password);
-        }
-        value = extract_post_param(post_body, "cNome");
-        if (!value.empty()) {
-            strncpy(received_info.central_name, value.c_str(), sizeof(received_info.central_name) - 1);
-            received_info.central_name[sizeof(received_info.central_name) - 1] = '\0';
-            ESP_LOGI(TAG, "Central Name: %s", received_info.central_name);
-        }
-        value = extract_post_param(post_body, "userTk");
-        if (!value.empty()) {
-            strncpy(received_info.token_id, value.c_str(), sizeof(received_info.token_id) - 1);
-            received_info.token_id[sizeof(received_info.token_id) - 1] = '\0';
-            ESP_LOGI(TAG, "Token ID: %s", received_info.token_id);
-        }
-        value = extract_post_param(post_body, "inpPassTk");
-        if (!value.empty()) {
-            strncpy(received_info.token_password, value.c_str(), sizeof(received_info.token_password) - 1);
-            received_info.token_password[sizeof(received_info.token_password) - 1] = '\0';
-            ESP_LOGI(TAG, "Token Password: %s", received_info.token_password);
-        }
-        value = extract_post_param(post_body, "userChoice");
-        if (!value.empty()) {
-            strncpy(received_info.token_flag, value.c_str(), sizeof(received_info.token_flag) - 1);
-            received_info.token_flag[sizeof(received_info.token_flag) - 1] = '\0';
-            ESP_LOGI(TAG, "Token Flag: %s", received_info.token_flag);
-        }
-        esp_err_t err_ct = StorageManager::enqueueRequest(
-            StorageCommand::SAVE,
-            StorageStructType::CONFIG_DATA,
-            &received_info,
-            sizeof(CentralInfo)
-        );
+    // static esp_err_t set_info_handler(httpd_req_t* req) {
+    //     ESP_LOGI(TAG, "POST /SET/info");
+    //     size_t total_len = req->content_len;
+    //     if (total_len == 0) {
+    //         ESP_LOGW(TAG, "Corpo da requisição POST vazio.");
+    //         httpd_resp_sendstr(req, "Corpo da requisição vazio.");
+    //         return ESP_OK;
+    //     }
+    //     char* buf = (char*)malloc(total_len + 1);
+    //     if (!buf) {
+    //         ESP_LOGE(TAG, "Falha ao alocar memória para o corpo da requisição.");
+    //         httpd_resp_send_500(req);
+    //         return ESP_FAIL;
+    //     }
+    //     int ret = httpd_req_recv(req, buf, total_len);
+    //     if (ret <= 0) {
+    //         if (ret == HTTPD_SOCK_ERR_TIMEOUT) {httpd_resp_send_408(req);}
+    //         else {ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);httpd_resp_send_500(req);}
+    //         free(buf);
+    //         return ESP_FAIL;
+    //     }
+    //     buf[total_len] = '\0';
+    //     ESP_LOGI(TAG, "Raw POST body received: '%s'", buf);
+    //     std::string post_body(buf);
+    //     free(buf);
+        // CentralInfo received_info;
+    //     SSIDInfo received_SSIDinfo;
+    //     std::string value;
+    //     bool changeSSID=false;
+    //     value = extract_post_param(post_body, "nomewifi");
+    //     if (!value.empty()) {
+    //         changeSSID=true;
+    //         strncpy(received_SSIDinfo.ssid, value.c_str(), sizeof(received_SSIDinfo.ssid) - 1);
+    //         received_SSIDinfo.ssid[sizeof(received_SSIDinfo.ssid) - 1] = '\0';
+    //         ESP_LOGI(TAG, "SSID: %s", received_SSIDinfo.ssid);
+    //     }
+    //     value = extract_post_param(post_body, "inpSenha");
+    //     if (!value.empty()) {
+    //         strncpy(received_SSIDinfo.password, value.c_str(), sizeof(received_SSIDinfo.password) - 1);
+    //         received_SSIDinfo.password[sizeof(received_SSIDinfo.password) - 1] = '\0';
+    //         ESP_LOGI(TAG, "Password: %s", received_SSIDinfo.password);
+    //     }
+    //     value = extract_post_param(post_body, "cNome");
+    //     if (!value.empty()) {
+    //         strncpy(received_info.central_name, value.c_str(), sizeof(received_info.central_name) - 1);
+    //         received_info.central_name[sizeof(received_info.central_name) - 1] = '\0';
+    //         ESP_LOGI(TAG, "Central Name: %s", received_info.central_name);
+    //     }
+    //     value = extract_post_param(post_body, "userTk");
+    //     if (!value.empty()) {
+    //         strncpy(received_info.token_id, value.c_str(), sizeof(received_info.token_id) - 1);
+    //         received_info.token_id[sizeof(received_info.token_id) - 1] = '\0';
+    //         ESP_LOGI(TAG, "Token ID: %s", received_info.token_id);
+    //     }
+    //     value = extract_post_param(post_body, "inpPassTk");
+    //     if (!value.empty()) {
+    //         strncpy(received_info.token_password, value.c_str(), sizeof(received_info.token_password) - 1);
+    //         received_info.token_password[sizeof(received_info.token_password) - 1] = '\0';
+    //         ESP_LOGI(TAG, "Token Password: %s", received_info.token_password);
+    //     }
+    //     value = extract_post_param(post_body, "userChoice");
+    //     if (!value.empty()) {
+    //         strncpy(received_info.token_flag, value.c_str(), sizeof(received_info.token_flag) - 1);
+    //         received_info.token_flag[sizeof(received_info.token_flag) - 1] = '\0';
+    //         ESP_LOGI(TAG, "Token Flag: %s", received_info.token_flag);
+    //     }
+    //     esp_err_t err_ct = StorageManager::enqueueRequest(
+    //         StorageCommand::SAVE,
+    //         StorageStructType::CONFIG_DATA,
+    //         &received_info,
+    //         sizeof(CentralInfo)
+    //     );
         
-        httpd_resp_sendstr(req, "SET info data placeholder");
-        return ESP_OK;
-    }
+    //     httpd_resp_sendstr(req, "SET info data placeholder");
+    //     return ESP_OK;
+    // }
     static esp_err_t login_auth_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /GET/login (senha pura)");
         std::string response_str = "erro";
@@ -322,7 +322,6 @@ namespace WebManager {
         registerUriHandler("/hotspot-detect.html",HTTP_GET,redirect_to_root_handler);
         registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
         // 3. Rotas de configuração e controle da central
-        registerUriHandler("/SET/info",HTTP_POST,set_info_handler);
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
         registerUriHandler("/GET/isok",HTTP_GET,get_config_handler);
         registerUriHandler("/encerrar",HTTP_POST,encerrar_handler);

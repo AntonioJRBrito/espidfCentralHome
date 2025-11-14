@@ -43,19 +43,6 @@ namespace StorageManager {
             }
         }
     }
-    void onStorageEvent(void*, esp_event_base_t, int32_t id, void*) {
-        EventId evt = static_cast<EventId>(id);
-        switch (evt) {
-            case EventId::STO_QUERY:
-                ESP_LOGI(TAG, "Recebido STO_QUERY");
-                break;
-            case EventId::STO_UPDATE:
-                ESP_LOGI(TAG, "Recebido STO_UPDATE");
-                break;
-            default:
-                break;
-        }
-    }
     static void storage_task(void* arg) {
         StorageRequest request;
         ESP_LOGI(TAG, "Storage Task iniciada.");
@@ -167,7 +154,6 @@ namespace StorageManager {
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Storage Manager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
-        EventBus::regHandler(EventDomain::STORAGE, &onStorageEvent, nullptr);
         s_storage_queue = xQueueCreate(10, sizeof(StorageRequest));
         if(s_storage_queue == nullptr){ESP_LOGE(TAG,"Falha ao criar fila de armazenamento!");return ESP_FAIL;}
         ESP_LOGI(TAG, "Fila de armazenamento criada.");
