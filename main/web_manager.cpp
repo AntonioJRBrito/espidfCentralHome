@@ -77,55 +77,6 @@ namespace WebManager {
         return ESP_OK;
     }
     // --- Handlers para configuração e controle da central ---
-    static esp_err_t get_info_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "POST /GET/info");
-        cJSON* root = cJSON_CreateObject();
-        if (!root) {
-            ESP_LOGE(TAG, "Falha ao criar objeto cJSON");
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
-        }
-        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name);
-        cJSON_AddStringToObject(root, "isIA", "TRUEIA");
-        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id);
-        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password);
-        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag);
-        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id);
-        for (int i = 1; i <= 3; ++i) {
-            std::string device_id_str = std::to_string(i);
-            const Device* dev = StorageManager::getDevice(device_id_str);
-            if (dev) {
-                cJSON_AddStringToObject(root, ("dTipo" + device_id_str).c_str(), std::to_string(dev->type).c_str());
-                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), dev->name.c_str());
-                cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), std::to_string(dev->time).c_str());
-            } else {
-                ESP_LOGW(TAG, "Dispositivo interno %d não encontrado.", i);
-                cJSON_AddStringToObject(root, ("dTipo" + device_id_str).c_str(), "0");
-                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), "");
-                cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), "0");
-            }
-        }
-        if(GlobalConfigData::cfg->wifi_cache.is_sta_connected){
-            cJSON_AddStringToObject(root, "conexao", "con");
-        } else {
-            cJSON_AddStringToObject(root, "conexao", "dis");
-        }
-        const char* ssid_value = (strlen(GlobalConfigData::cfg->ssid) == 0) ? "" : GlobalConfigData::cfg->ssid;
-        cJSON_AddStringToObject(root, "ssid", ssid_value);
-        char* json_string = cJSON_PrintUnformatted(root);
-        if (!json_string) {
-            ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");
-            cJSON_Delete(root);
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
-        }
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, json_string);
-        ESP_LOGI(TAG, "Servido /GET/info: %s", json_string);
-        cJSON_Delete(root);
-        free(json_string);
-        return ESP_OK;
-    }
     static esp_err_t set_info_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /SET/info");
         size_t total_len = req->content_len;
@@ -142,12 +93,8 @@ namespace WebManager {
         }
         int ret = httpd_req_recv(req, buf, total_len);
         if (ret <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-                httpd_resp_send_408(req);
-            } else {
-                ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);
-                httpd_resp_send_500(req);
-            }
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {httpd_resp_send_408(req);}
+            else {ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);httpd_resp_send_500(req);}
             free(buf);
             return ESP_FAIL;
         }
@@ -202,7 +149,7 @@ namespace WebManager {
             &received_info,
             sizeof(CentralInfo)
         );
-
+        
         httpd_resp_sendstr(req, "SET info data placeholder");
         return ESP_OK;
     }
@@ -375,7 +322,6 @@ namespace WebManager {
         registerUriHandler("/hotspot-detect.html",HTTP_GET,redirect_to_root_handler);
         registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
         // 3. Rotas de configuração e controle da central
-        registerUriHandler("/GET/info",HTTP_POST,get_info_handler);
         registerUriHandler("/SET/info",HTTP_POST,set_info_handler);
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
         registerUriHandler("/GET/isok",HTTP_GET,get_config_handler);

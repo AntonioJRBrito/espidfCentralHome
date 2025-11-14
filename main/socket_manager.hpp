@@ -16,7 +16,9 @@
 #include "esp_netif.h"
 #include "esp_eth.h"
 #include <string>
+#include "cJSON.h"
 #include "global_config.hpp"
+#include "storage_manager.hpp"
 
 namespace SocketManager {
     esp_err_t init();

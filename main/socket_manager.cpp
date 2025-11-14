@@ -9,6 +9,45 @@ namespace SocketManager {
     static httpd_handle_t ws_server = nullptr;
     static bool ws_registered = false;
     static httpd_uri_t ws_uri;
+    static void info(int fd){
+        cJSON* root = cJSON_CreateObject();
+        if(!root){ESP_LOGE(TAG, "Falha ao criar objeto cJSON");return;}
+        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name);
+        cJSON_AddStringToObject(root, "isIA", "TRUEIA");
+        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id);
+        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password);
+        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag);
+        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id);
+        for (int i = 1; i <= 3; ++i) {
+            std::string device_id_str = std::to_string(i);
+            const Device* dev = StorageManager::getDevice(device_id_str);
+            if (dev) {
+                cJSON_AddNumberToObject(root, ("dTipo" + device_id_str).c_str(), dev->type);
+                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), dev->name.c_str());
+                cJSON_AddNumberToObject(root, ("dTempo" + device_id_str).c_str(), dev->time);
+            } else {
+                ESP_LOGW(TAG, "Dispositivo interno %d não encontrado.", i);
+                cJSON_AddStringToObject(root, ("dTipo" + device_id_str).c_str(), "0");
+                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), "");
+                cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), "0");
+            }
+        }
+        if(GlobalConfigData::cfg->wifi_cache.is_sta_connected){
+            cJSON_AddStringToObject(root, "conexao", "con");
+        } else {
+            cJSON_AddStringToObject(root, "conexao", "dis");
+        }
+        const char* ssid_value = (strlen(GlobalConfigData::cfg->ssid) == 0) ? "" : GlobalConfigData::cfg->ssid;
+        cJSON_AddStringToObject(root, "ssid", ssid_value);
+        const char* json_string = cJSON_PrintUnformatted(root);
+        if(!json_string){ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");cJSON_Delete(root);return;}
+        std::string full_message = "listInfo" + std::string(json_string);
+        esp_err_t ret = sendToClient(fd, full_message.c_str());
+        if(ret != ESP_OK){ESP_LOGE(TAG,"Falha ao servir listInfo");}
+        else{ESP_LOGI(TAG, "Servido listInfo");}
+        cJSON_Delete(root);
+        free((void*)json_string);
+    }
     // Adiciona cliente à lista
     static void addClient(int fd) {
         std::lock_guard<std::mutex> lock(clients_mutex);
@@ -45,9 +84,11 @@ namespace SocketManager {
             ESP_LOGI(TAG, "Comando NET recebido, solicitando lista WiFi para fd=%d", fd);
             EventBus::post(EventDomain::NETWORK, EventId::NET_LISTQRY, &fd, sizeof(int));
         }
-        else {
-            ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());
+        else if (message == "INFO") {
+            ESP_LOGI(TAG, "Comando INFO recebido para fd=%d", fd);
+            info(fd);
         }
+        else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
         return ret;
     }
@@ -99,32 +140,8 @@ namespace SocketManager {
                 sendToClient(client_fd, error_msg);
             }
         }
-        else {
-            ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);
-        }
+        else {ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);}
     }
-    // Handler de eventos do EventBus
-    static void onSocketEvent(void*, esp_event_base_t, int32_t id, void* data) {
-        // EventId evt = static_cast<EventId>(id);
-        
-        // switch (evt) {
-        //     case EventId::SOC_BROADCAST:
-        //         // Broadcast solicitado via EventBus
-        //         if (data) {
-        //             broadcast((const char*)data);
-        //         }
-        //         break;
-                
-        //     case EventId::SOC_MESSAGE:
-        //         // Mensagem recebida de cliente - já processada no handler
-        //         ESP_LOGD(TAG, "Evento SOC_MESSAGE processado");
-        //         break;
-                
-        //     default:
-        //         break;
-        // }
-    }
-    
     // Inicia o WebSocket (chamado após o HTTP server estar rodando)
     esp_err_t start(httpd_handle_t server) {
         if (!server) {ESP_LOGE(TAG, "HTTP server inválido");return ESP_FAIL;}
@@ -144,10 +161,7 @@ namespace SocketManager {
             ESP_LOGI(TAG, "✓ WebSocket registrado com sucesso");
             EventBus::post(EventDomain::SOCKET, EventId::SOC_STARTED);
             ESP_LOGI(TAG, "→ SOC_STARTED publicado");
-        } else {
-            ESP_LOGE(TAG, "Falha ao registrar WebSocket handler");
-        }
-        
+        } else {ESP_LOGE(TAG, "Falha ao registrar WebSocket handler");}
         return ret;
     }
     // Para o WebSocket
@@ -172,7 +186,6 @@ namespace SocketManager {
     // Inicialização
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Socket Manager...");
-        EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         EventBus::post(EventDomain::READY, EventId::SOC_READY);

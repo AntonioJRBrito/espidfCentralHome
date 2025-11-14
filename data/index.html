@@ -115,36 +115,36 @@
           .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`atualizar.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
           .catch(err=>{showMessage('erroCom');});
         }
-        function findInfo(){
-          fetch('/GET/info',{method:"POST"})
-          .then(response=>response.json())
-          .then(data=>{
-            document.getElementById('cNome').value=data.cNome;
-            document.getElementById('dNome1').value=data.dNome1;
-            document.getElementById('dTipo1').value=data.dTipo1;
-            document.getElementById('dTempo1').value=data.dTempo1;
-            document.getElementById('dNome2').value=data.dNome2;
-            document.getElementById('dTipo2').value=data.dTipo2;
-            document.getElementById('dTempo2').value=data.dTempo2;
-            document.getElementById('dNome3').value=data.dNome3;
-            document.getElementById('dTipo3').value=data.dTipo3;
-            document.getElementById('dTempo3').value=data.dTempo3;
-            document.getElementById('inpPassTk').value=data.passToken;
-            document.getElementById('userTk').value=data.userToken;
-            document.getElementById('tokenFixo').value=data.token;
-            rede_conectada=data.ssid;
-            if(rede_conectada.length>0){labelwifi.style.color="red";}
-            else{labelwifi.style.color="white";}
-            if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
-            else{document.getElementById('authInterno').checked=true;}
-            updateAuthMode();
-            if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
-            showTime1();
-            showTime2();
-            showTime3();
-          })
-          .catch(error=>{showMessage('erroDat');});
-        };
+        // function findInfo(){
+        //   fetch('/GET/info',{method:"POST"})
+        //   .then(response=>response.json())
+        //   .then(data=>{
+        //     document.getElementById('cNome').value=data.cNome;
+        //     document.getElementById('dNome1').value=data.dNome1;
+        //     document.getElementById('dTipo1').value=data.dTipo1;
+        //     document.getElementById('dTempo1').value=data.dTempo1;
+        //     document.getElementById('dNome2').value=data.dNome2;
+        //     document.getElementById('dTipo2').value=data.dTipo2;
+        //     document.getElementById('dTempo2').value=data.dTempo2;
+        //     document.getElementById('dNome3').value=data.dNome3;
+        //     document.getElementById('dTipo3').value=data.dTipo3;
+        //     document.getElementById('dTempo3').value=data.dTempo3;
+        //     document.getElementById('inpPassTk').value=data.passToken;
+        //     document.getElementById('userTk').value=data.userToken;
+        //     document.getElementById('tokenFixo').value=data.token;
+        //     rede_conectada=data.ssid;
+        //     if(rede_conectada.length>0){labelwifi.style.color="red";}
+        //     else{labelwifi.style.color="white";}
+        //     if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
+        //     else{document.getElementById('authInterno').checked=true;}
+        //     updateAuthMode();
+        //     if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
+        //     showTime1();
+        //     showTime2();
+        //     showTime3();
+        //   })
+        //   .catch(error=>{showMessage('erroDat');});
+        // };
         function showTime1(){
           if (document.getElementById('divTempo1')){divTempo1.style.display=(document.getElementById('dTipo1').value==='3') ? 'flex':'none';}
         }
@@ -197,7 +197,38 @@
               const msg=event.data.substring(7);
               if(msg.trim().startsWith('<option')){
                 document.getElementById('nomewifi').innerHTML='<option value="" disabled selected>Selecione uma rede</option>'+msg;
-                findInfo();
+                socket.send("INFO");
+              }
+            }
+            if(event.data.startsWith("listInfo")){
+              clearTimeout(timeoutId);
+              const msg=event.data.substring(8);
+              if(msg.startsWith('error')){showMessage('erroDat');}
+              else{
+                data=JSON.parse(msg);
+                document.getElementById('cNome').value=data.cNome;
+                document.getElementById('dNome1').value=data.dNome1;
+                document.getElementById('dTipo1').value=data.dTipo1;
+                document.getElementById('dTempo1').value=data.dTempo1;
+                document.getElementById('dNome2').value=data.dNome2;
+                document.getElementById('dTipo2').value=data.dTipo2;
+                document.getElementById('dTempo2').value=data.dTempo2;
+                document.getElementById('dNome3').value=data.dNome3;
+                document.getElementById('dTipo3').value=data.dTipo3;
+                document.getElementById('dTempo3').value=data.dTempo3;
+                document.getElementById('inpPassTk').value=data.passToken;
+                document.getElementById('userTk').value=data.userToken;
+                document.getElementById('tokenFixo').value=data.token;
+                rede_conectada=data.ssid;
+                if(rede_conectada.length>0){labelwifi.style.color="red";}
+                else{labelwifi.style.color="white";}
+                if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
+                else{document.getElementById('authInterno').checked=true;}
+                updateAuthMode();
+                if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
+                showTime1();
+                showTime2();
+                showTime3();
               }
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}

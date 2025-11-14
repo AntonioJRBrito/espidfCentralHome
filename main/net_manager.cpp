@@ -77,10 +77,7 @@ namespace NetManager
     }
     static void onEventStorageBus(void*,esp_event_base_t base,int32_t id,void*)
     {
-        if (static_cast<EventId>(id)==EventId::STO_SSIDOK) {
-            ESP_LOGI(TAG, "Iniciando STA");
-            connectSTA();
-        }
+        if (static_cast<EventId>(id)==EventId::STO_SSIDOK){ESP_LOGI(TAG, "Iniciando STA");connectSTA();}
     }
     static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data)
     {
