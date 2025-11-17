@@ -23,7 +23,7 @@ namespace SocketManager {
             const Device* dev = StorageManager::getDevice(device_id_str);
             if (dev) {
                 cJSON_AddNumberToObject(root, ("dTipo" + device_id_str).c_str(), dev->type);
-                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), dev->name.c_str());
+                cJSON_AddStringToObject(root, ("dNome" + device_id_str).c_str(), dev->name);
                 cJSON_AddNumberToObject(root, ("dTempo" + device_id_str).c_str(), dev->time);
             } else {
                 ESP_LOGW(TAG, "Dispositivo interno %d não encontrado.", i);

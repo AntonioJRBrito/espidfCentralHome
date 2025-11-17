@@ -9,24 +9,162 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "global_config.hpp"
+#include "freertos/semphr.h"
+#include <cstring>
+#include <cstdint>
+#include "esp_heap_caps.h"
+#include <time.h>
+#include <cctype>
+#include "esp_mac.h"
 
+#define MAX_MAC_LEN                     18
+#define MAX_ID_LEN                      13
+#define MAX_IP_LEN                      16
+#define MAX_SSIDWAN_LEN                 33
+#define MAX_PASSWORD_LEN                65
+#define MAX_CENTRAL_NAME_LEN            33
+#define MAX_TOKEN_ID_LEN                33
+#define MAX_TOKEN_PASSWORD_LEN          65
+#define MAX_TOKEN_FLAG_LEN               2
+#define MAX_HTML_OPTIONS_BUFFER_SIZE  8192
+#define MAX_FILE_PATH_LEN               64
+
+struct WifiScanCache {
+    char* networks_html_ptr;
+    size_t networks_html_len;
+    time_t last_scan;
+    bool is_sta_connected;
+    WifiScanCache(){
+        networks_html_ptr = nullptr;
+        networks_html_len = 0;
+        last_scan = 0;
+        is_sta_connected = false;
+    }
+};
+struct IDConfig {
+    char mac[MAX_MAC_LEN];
+    char id[MAX_ID_LEN];
+    char ip[MAX_IP_LEN];
+    IDConfig() {
+        memset(mac, 0, sizeof(mac));
+        memset(id, 0, sizeof(id));
+        memset(ip, 0, sizeof(ip));
+    }
+};
+struct GlobalConfig {
+    char ssid[MAX_SSIDWAN_LEN];
+    char password[MAX_PASSWORD_LEN];
+    char central_name[MAX_CENTRAL_NAME_LEN];
+    char token_id[MAX_TOKEN_ID_LEN];
+    char token_password[MAX_TOKEN_PASSWORD_LEN];
+    char token_flag[MAX_TOKEN_FLAG_LEN];
+    GlobalConfig() {
+        memset(ssid, 0, sizeof(ssid));
+        memset(password, 0, sizeof(password));
+        memset(central_name, 0, sizeof(central_name));
+        memset(token_id, 0, sizeof(token_id));
+        memset(token_password, 0, sizeof(token_password));
+        memset(token_flag, 0, sizeof(token_flag));
+    }
+};
+struct GlobalConfigDTO {
+    char ssid[MAX_SSIDWAN_LEN];
+    char password[MAX_PASSWORD_LEN];
+    char central_name[MAX_CENTRAL_NAME_LEN];
+    char token_id[MAX_TOKEN_ID_LEN];
+    char token_password[MAX_TOKEN_PASSWORD_LEN];
+    char token_flag[MAX_TOKEN_FLAG_LEN];
+    GlobalConfigDTO() {
+        memset(ssid, 0, sizeof(ssid));
+        memset(password, 0, sizeof(password));
+        memset(central_name, 0, sizeof(central_name));
+        memset(token_id, 0, sizeof(token_id));
+        memset(token_password, 0, sizeof(token_password));
+        memset(token_flag, 0, sizeof(token_flag));
+    }
+};
+struct Device {
+    char id[MAX_ID_LEN];
+    char name[MAX_CENTRAL_NAME_LEN];
+    uint8_t type;
+    uint16_t time;
+    uint8_t status;
+    char x_str[MAX_ID_LEN];
+    uint8_t x_int;
+    Device() {
+        memset(id, 0, sizeof(id));
+        memset(name, 0, sizeof(name));
+        type = 0;
+        time = 0;
+        status = 0;
+        memset(x_str, 0, sizeof(x_str));
+        x_int = 0;
+    }
+};
+struct DeviceDTO {
+    char id[MAX_ID_LEN];
+    char name[MAX_CENTRAL_NAME_LEN];
+    uint8_t type;
+    uint16_t time;
+    uint8_t status;
+    char x_str[MAX_ID_LEN];
+    uint8_t x_int;
+    DeviceDTO() {
+        memset(id, 0, sizeof(id));
+        memset(name, 0, sizeof(name));
+        type = 0;
+        time = 0;
+        status = 0;
+        memset(x_str, 0, sizeof(x_str));
+        x_int = 0;
+    }
+};
+struct Sensor {
+    char id[MAX_ID_LEN];
+    char name[MAX_CENTRAL_NAME_LEN];
+    uint8_t type;
+    uint16_t time;
+    uint8_t status;
+    char x_str[MAX_ID_LEN];
+    uint8_t x_int;
+    Sensor() {
+        memset(id, 0, sizeof(id));
+        memset(name, 0, sizeof(name));
+        type = 0;
+        time = 0;
+        status = 0;
+        memset(x_str, 0, sizeof(x_str));
+        x_int = 0;
+    }
+};
+struct SensorDTO {
+    char id[MAX_ID_LEN];
+    char name[MAX_CENTRAL_NAME_LEN];
+    uint8_t type;
+    uint16_t time;
+    uint8_t status;
+    char x_str[MAX_ID_LEN];
+    uint8_t x_int;
+    SensorDTO() {
+        memset(id, 0, sizeof(id));
+        memset(name, 0, sizeof(name));
+        type = 0;
+        time = 0;
+        status = 0;
+        memset(x_str, 0, sizeof(x_str));
+        x_int = 0;
+    }
+};
 struct Page {
     void* data;
     size_t size;
     std::string mime;
+    Page() {
+        data = nullptr;
+        size = 0;
+        mime = "";
+    }
 };
-struct Device {
-    std::string id;
-    std::string name;
-    uint8_t type;
-    uint16_t time;
-    uint8_t status;
-    std::string x_str;
-    uint8_t x_int;
-};
-enum class StorageCommand {SAVE,READ,DELETE};
-enum class StorageStructType {CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA};
 struct StorageRequest {
     StorageCommand command;
     StorageStructType type;
@@ -34,20 +172,50 @@ struct StorageRequest {
     size_t data_len;
     int client_fd;
     EventId response_event_id;
+    StorageRequest() {
+        command = StorageCommand::SAVE;
+        type = StorageStructType::CONFIG_DATA;
+        data_ptr = nullptr;
+        data_len = 0;
+        client_fd = -1;
+        response_event_id = EventId::NONE;
+    }
+};
+enum class StorageCommand {
+    SAVE,DELETE,CREATE
+};
+enum class StorageStructType {
+    CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA
 };
 namespace StorageManager {
-    esp_err_t init();
-    // page
+    // Ponteiros para as configurações globais na PSRAM
+    extern GlobalConfig* cfg;
+    extern IDConfig* id_cfg;
+    extern WifiScanCache* scanCache;
+    // Funções de utilidade
+    bool isBlankOrEmpty(const char* str);
+    bool isWifiCacheValid();
+    void invalidateWifiCache();
+    // Funções para gerenciamento de páginas web
     void registerPage(const char* uri, Page* page);
     const Page* getPage(const char* uri);
-    // device
+    // Funções para gerenciamento de dispositivos
     void registerDevice(const std::string& id, Device* device);
     const Device* getDevice(const std::string& id);
     size_t getDeviceCount();
     std::vector<std::string> getDeviceIds();
-    // handlers
-    void onNetworkEvent(void*, esp_event_base_t, int32_t, void*);
+    esp_err_t saveDevice(const std::string& id, Device* device_data);
+    // Funções para gerenciamento de sensores
+    void registerSensor(const std::string& id, Sensor* sensor);
+    const Sensor* getSensor(const std::string& id);
+    size_t getSensorCount();
+    std::vector<std::string> getSensorIds();
+    esp_err_t saveSensor(const std::string& id, Sensor* sensor_data);
+    // Handlers de eventos
+    void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
     void onStorageEvent(void*, esp_event_base_t, int32_t, void*);
-    // storage
+    // Função para enfileirar requisições de armazenamento
     esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,int client_fd=-1,EventId response_event_id=EventId::NONE);
+    // Função de inicialização
+    esp_err_t init();
 }

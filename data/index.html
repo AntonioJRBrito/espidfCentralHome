@@ -135,42 +135,6 @@
           socket.send(message);
           timeoutId=setTimeout(()=>{showMessage('erroCom');timeoutId=null;},15000);
         }
-        // function netTest(event){
-        //   showDiv('divAguarde');
-        //   event.preventDefault();
-        //   const formOr=document.getElementById('formWIFI');
-        //   const formData=new FormData(formOr);
-        //   const wifiDeleted=(document.getElementById('nomewifi').value===rede_conectada);
-        //   if(wifiDeleted){
-        //     formData.delete('nomewifi');
-        //     formData.delete('inpSenha');
-        //   }
-        //   const params=new URLSearchParams();
-        //   for(const pair of formData.entries()){
-        //     params.append(pair[0],pair[1]);
-        //   }
-        //   if(wifiDeleted){
-        //     fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
-        //     .then(response=>{showMessage('sucesso');})
-        //     .catch(error=>{showMessage('erroCom');});
-        //   }else{
-        //     fetch('/SET/info',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()})
-        //     .then(response=>{response.text().then(data=>{
-        //       if(data==="recebido"){
-        //         setTimeout(()=>{
-        //           fetch('/GET/isok')
-        //           .then(response=>{
-        //             response.text().then(data=>{
-        //               if(data==="error"){showMessage('erroSid')}
-        //               else{showMessage('sucesso')}
-        //             })})
-        //           .catch(error=>{showMessage('erroCom')});
-        //         },15000);
-        //       }else{showMessage('erroCom')}
-        //     })})
-        //     .catch(error=>{showMessage('erroCom')});
-        //   }
-        // };
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("listNet")){
