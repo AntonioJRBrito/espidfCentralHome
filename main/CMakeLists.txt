@@ -17,7 +17,6 @@ idf_component_register(
         "device_manager.cpp"
         "ble_manager.cpp"
         "rtc_manager.cpp"
-        "global_config.cpp"
        
     INCLUDE_DIRS
         "."

@@ -13,6 +13,7 @@
       window.onload=function(){
         // variáveis
         let rede_conectada;
+        let senha_anterior;
         let senhaVisivel=true;
         let tkVisivel=true;
         let tentativas=0;
@@ -148,11 +149,12 @@
             if(event.data.startsWith("configOk")){
               clearTimeout(timeoutId);
               const currentSelectedWifi=document.getElementById('nomewifi').value;
-              const wifiChanged=(currentSelectedWifi!==rede_conectada);
+              const currentSelectedPass=document.getElementById('inpSenha').value;
+              const wifiChanged=((currentSelectedWifi!==rede_conectada)||(currentSelectedPass!==senha_anterior));
               if(wifiChanged){
                 const dataToSend={};
-                dataToSend['nomewifi']=document.getElementById('nomewifi');
-                dataToSend['inpSenha']=document.getElementById('inpSenha');
+                dataToSend['nomewifi']=document.getElementById('nomewifi').value;
+                dataToSend['inpSenha']=document.getElementById('inpSenha').value;
                 const message="CREDENTIAL"+JSON.stringify(dataToSend);
                 socket.send(message);
                 timeoutId=setTimeout(()=>{showMessage('erroSid');timeoutId=null;},30000);
@@ -184,6 +186,7 @@
                 document.getElementById('userTk').value=data.userToken;
                 document.getElementById('tokenFixo').value=data.token;
                 rede_conectada=data.ssid;
+                senha_anterior=data.pass;
                 if(rede_conectada.length>0){labelwifi.style.color="red";}
                 else{labelwifi.style.color="white";}
                 if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}

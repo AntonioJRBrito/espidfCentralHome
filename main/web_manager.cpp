@@ -175,8 +175,8 @@ namespace WebManager {
                     content_buf[ret] = '\0';
                     std::string provided_password = content_buf;
                     ESP_LOGD(TAG, "Senha recebida: '%s'", provided_password.c_str());
-                    if (GlobalConfigData::cfg && !GlobalConfigData::isBlankOrEmpty(GlobalConfigData::cfg->password) &&
-                        provided_password == GlobalConfigData::cfg->password) {
+                    if (StorageManager::cd_cfg && !StorageManager::isBlankOrEmpty(StorageManager::cd_cfg->password) &&
+                        provided_password == StorageManager::cd_cfg->password) {
                         uint32_t token = gerarTokenNumerico();
                         response_str = "sucesso:" + std::to_string(token);
                         ESP_LOGI(TAG, "Login bem-sucedido. Token gerado: %u", token);
@@ -209,8 +209,8 @@ namespace WebManager {
         const Page* page = StorageManager::getPage("description.xml");
         if(!page){ESP_LOGW(TAG, "description.xml não encontrado");return ESP_ERR_NOT_FOUND;}
         std::string content((char*)page->data, page->size);
-        content=GlobalConfigData::replacePlaceholders(content,"$IP$",GlobalConfigData::cfg->ip);
-        content=GlobalConfigData::replacePlaceholders(content,"$ID$",GlobalConfigData::cfg->id);
+        content=StorageManager::replacePlaceholders(content,"$IP$",StorageManager::id_cfg->ip);
+        content=StorageManager::replacePlaceholders(content,"$ID$",StorageManager::id_cfg->id);
         httpd_resp_set_type(req, page->mime.c_str());
         httpd_resp_send(req, content.c_str(), content.length());
         ESP_LOGW(TAG,"%s", content.c_str());
@@ -220,7 +220,7 @@ namespace WebManager {
         const Page* page = StorageManager::getPage("apiget.json");
         if(!page){ESP_LOGW(TAG, "apiget.json não encontrado");return ESP_ERR_NOT_FOUND;}
         std::string content((char*)page->data, page->size);
-        content=GlobalConfigData::replacePlaceholders(content,"$ID$",GlobalConfigData::cfg->id);
+        content=StorageManager::replacePlaceholders(content,"$ID$",StorageManager::id_cfg->id);
         httpd_resp_set_type(req, page->mime.c_str());
         httpd_resp_send(req, content.c_str(), content.length());
         ESP_LOGW(TAG,"%s", content.c_str());
@@ -236,7 +236,7 @@ namespace WebManager {
             const Page* page = StorageManager::getPage("lights_all.json");
             if (!page) {ESP_LOGE(TAG, "lights_all.json não encontrado");return ESP_FAIL;}
             std::string content((char*)page->data, page->size);
-            content = GlobalConfigData::replacePlaceholders(content,"$MAC$",GlobalConfigData::cfg->mac);
+            content = StorageManager::replacePlaceholders(content,"$MAC$",StorageManager::id_cfg->mac);
             httpd_resp_set_type(req, "application/json");
             httpd_resp_send(req, content.c_str(), content.length());
             ESP_LOGI(TAG, "Servido: lights_all.json (%zu bytes)", content.length());
@@ -247,13 +247,13 @@ namespace WebManager {
         const Page* page = StorageManager::getPage("api/light_detail.json");
         if (!page) {ESP_LOGE(TAG, "light_detail.json não encontrado");return ESP_FAIL;}
         std::string content((char*)page->data, page->size);
-        content = GlobalConfigData::replacePlaceholders(content,"$DEVICE",std::to_string(device_id));
+        content = StorageManager::replacePlaceholders(content,"$DEVICE",std::to_string(device_id));
         // content = GlobalConfigData::replacePlaceholders(content,"$DEVICENAME$",???);
-        content = GlobalConfigData::replacePlaceholders(content,"$MAC",GlobalConfigData::cfg->mac);
+        content = StorageManager::replacePlaceholders(content,"$MAC",StorageManager::id_cfg->mac);
         
         // Substitui status
         bool device_status = false; // TODO: buscar status real
-        content = GlobalConfigData::replacePlaceholders(content, "$STATUS$", device_status ? "true" : "false");
+        content = StorageManager::replacePlaceholders(content, "$STATUS$", device_status ? "true" : "false");
         
         httpd_resp_set_type(req, "application/json");
         httpd_resp_send(req, content.c_str(), content.length());

@@ -7,6 +7,7 @@ namespace StorageManager {
     // Declaração dos ponteiros globais que serão alocados na PSRAM
     GlobalConfig* cfg = nullptr;
     IDConfig* id_cfg = nullptr;
+    CredentialConfig* cd_cfg = nullptr;
     WifiScanCache* scanCache = nullptr;
     // Variáveis estáticas internas do módulo
     static QueueHandle_t s_storage_queue = nullptr;
@@ -35,7 +36,7 @@ namespace StorageManager {
         scanCache->last_scan = 0;
         ESP_LOGI(TAG, "Cache WiFi invalidado (conteúdo limpo).");
     }
-    static std::string replacePlaceholders(const std::string& content, const std::string& search, const std::string& replace) {
+    std::string replacePlaceholders(const std::string& content, const std::string& search, const std::string& replace) {
         std::string result = content;
         size_t pos = 0;
         while((pos=result.find(search,pos))!=std::string::npos){result.replace(pos,search.length(),replace);pos+=replace.length();}
@@ -51,13 +52,13 @@ namespace StorageManager {
         return (it != pageMap.end()) ? it->second : nullptr;
     }
     // --- Gerenciamento de Dispositivos ---
-    void registerDevice(const std::string& id, Device* device) {
-        auto it = deviceMap.find(id);
+    void registerDevice(Device* device) {
+        auto it = deviceMap.find(std::string(device->id));
         if (it != deviceMap.end()) {
-            ESP_LOGW(TAG, "Dispositivo '%s' já existe. Liberando memória antiga.", id.c_str());
+            ESP_LOGW(TAG, "Dispositivo '%s' já existe. Liberando memória antiga.",std::string(device->id));
             heap_caps_free(it->second);
         }
-        deviceMap[id] = device;
+        deviceMap[std::string(device->id)] = device;
         ESP_LOGI(TAG, "Dispositivo registrado/atualizado: ID=%s, Nome=%s, Tipo=%d, Status=%d", device->id, device->name, device->type, device->status);
     }
     // Função pública para obter dispositivo
@@ -88,13 +89,13 @@ namespace StorageManager {
         return ESP_OK;
     }
     // --- Gerenciamento de Sensores ---
-    void registerSensor(const std::string& id, Sensor* sensor) {
-        auto it = sensorMap.find(id);
+    void registerSensor(Sensor* sensor) {
+        auto it = sensorMap.find(std::string(sensor->id));
         if (it != sensorMap.end()) {
-            ESP_LOGW(TAG, "Sensor '%s' já existe. Liberando memória antiga.", id.c_str());
+            ESP_LOGW(TAG, "Sensor '%s' já existe. Liberando memória antiga.",std::string(sensor->id));
             heap_caps_free(it->second);
         }
-        sensorMap[id] = sensor;
+        sensorMap[std::string(sensor->id)] = sensor;
         ESP_LOGI(TAG, "Dispositivo registrado/atualizado: ID=%s, Nome=%s, Tipo=%d, Status=%d", sensor->id, sensor->name, sensor->type, sensor->status);
     }
     // Função pública para obter sensor
@@ -129,7 +130,7 @@ namespace StorageManager {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_IFOK) {
             ESP_LOGI(TAG, "Network IFOK recebido → checar SSID/password armazenados...");
-            if (!isBlankOrEmpty(cfg->ssid)) {
+            if (!isBlankOrEmpty(cd_cfg->ssid)) {
                 EventBus::post(EventDomain::STORAGE, EventId::STO_SSIDOK);
             }
         }
@@ -173,24 +174,38 @@ namespace StorageManager {
                         case StorageCommand::SAVE: {
                             ESP_LOGI(TAG, "Processando SAVE para Tipo=%d", static_cast<int>(request.type));
                             switch (request.type) {
-                                case StorageStructType::CONFIG_DATA: {
+                                case StorageStructType::CONFIG_DATA: 
+                                {
                                     if (request.data_ptr && request.data_len == sizeof(GlobalConfigDTO)) {
                                         memcpy(cfg, request.data_ptr, sizeof(GlobalConfigDTO));
                                         err = Storage::saveGlobalConfigFile(cfg);
                                         ESP_LOGI(TAG, "GlobalConfig salvo na flash. Status: %s", esp_err_to_name(err));
+                                        if(request.response_event_id!=EventId::NONE){
+                                            EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.client_fd,sizeof(int));
+                                        }
                                     } else {
                                         ESP_LOGE(TAG, "SAVE CONFIG_DATA: Dados inválidos ou tamanho incorreto.");
                                         err = ESP_ERR_INVALID_ARG;
                                     }
                                     break;
                                 }
-                                case StorageStructType::CREDENTIAL_DATA: {
-                                    ESP_LOGI(TAG, "Salvando CREDENTIAL_DATA (TODO)");
-                                    // TODO: Implementar lógica para CREDENTIAL_DATA
-                                    err = ESP_ERR_NOT_SUPPORTED;
+                                case StorageStructType::CREDENTIAL_DATA:
+                                {
+                                    if (request.data_ptr && request.data_len == sizeof(CredentialConfigDTO)) {
+                                        memcpy(cd_cfg, request.data_ptr, sizeof(CredentialConfigDTO));
+                                        err = Storage::saveCredentialConfigFile(cd_cfg);
+                                        ESP_LOGI(TAG, "CredentialConfig salvo na flash. Status: %s", esp_err_to_name(err));
+                                        if(request.response_event_id!=EventId::NONE){
+                                            EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.client_fd,sizeof(int));
+                                        }
+                                    } else {
+                                        ESP_LOGE(TAG, "SAVE CONFIG_DATA: Dados inválidos ou tamanho incorreto.");
+                                        err = ESP_ERR_INVALID_ARG;
+                                    }
                                     break;
                                 }
-                                case StorageStructType::SENSOR_DATA: {
+                                case StorageStructType::SENSOR_DATA: 
+                                {
                                     ESP_LOGI(TAG, "Salvando SENSOR_DATA (TODO)");
                                     // TODO: Implementar lógica para SENSOR_DATA
                                     err = ESP_ERR_NOT_SUPPORTED;
@@ -227,10 +242,6 @@ namespace StorageManager {
                                     err = ESP_ERR_NOT_SUPPORTED;
                                     break;
                                 }
-                                default:
-                                    ESP_LOGW(TAG, "SAVE: Tipo de estrutura desconhecido: %d", static_cast<int>(request.type));
-                                    err = ESP_ERR_NOT_SUPPORTED;
-                                    break;
                             }
                             break;
                         }
@@ -248,15 +259,9 @@ namespace StorageManager {
                         }
                     }
                     xSemaphoreGive(s_flash_mutex);
-                    if (request.response_event_id != EventId::NONE) {
-                        EventBus::post(EventDomain::STORAGE, request.response_event_id, &err, sizeof(esp_err_t));
-                    }
                 } else {
                     ESP_LOGE(TAG, "Falha ao adquirir mutex da flash! Requisição não processada.");
                     esp_err_t mutex_err = ESP_ERR_TIMEOUT; // Define o erro para timeout do mutex
-                    if (request.response_event_id != EventId::NONE) {
-                        EventBus::post(EventDomain::STORAGE, request.response_event_id, &mutex_err, sizeof(esp_err_t));
-                    }
                 }
                 if (request.data_ptr) {
                     heap_caps_free(request.data_ptr);
@@ -275,6 +280,9 @@ namespace StorageManager {
         id_cfg = (IDConfig*)heap_caps_calloc(1, sizeof(IDConfig), MALLOC_CAP_SPIRAM);
         if (!id_cfg) { heap_caps_free(cfg); ESP_LOGE(TAG, "Falha ao alocar IDConfig na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "IDConfig alocado na PSRAM.");
+        cd_cfg = (CredentialConfig*)heap_caps_calloc(1, sizeof(CredentialConfig), MALLOC_CAP_SPIRAM);
+        if (!cd_cfg) { heap_caps_free(cfg); ESP_LOGE(TAG, "Falha ao alocar CredentialConfig na PSRAM"); return ESP_ERR_NO_MEM; }
+        ESP_LOGI(TAG, "CredentialConfig alocado na PSRAM.");
         scanCache = (WifiScanCache*)heap_caps_calloc(1, sizeof(WifiScanCache), MALLOC_CAP_SPIRAM);
         if (!scanCache) { heap_caps_free(cfg); heap_caps_free(id_cfg); ESP_LOGE(TAG, "Falha ao alocar WifiScanCache na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "WifiScanCache alocado na PSRAM.");

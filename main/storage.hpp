@@ -17,6 +17,7 @@
 namespace Storage {
     esp_err_t init();
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg);
+    esp_err_t saveCredentialConfigFile(CredentialConfig* cd_cfg);
     esp_err_t saveDeviceFile(Device* device);
     esp_err_t deleteDeviceFile(const std::string& id);
     esp_err_t saveSensorFile(Sensor* sensor);

@@ -1,7 +1,6 @@
 #pragma once
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "global_config.hpp"
 #include <string>
 #include <vector>
 #include "esp_err.h"

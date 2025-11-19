@@ -16,12 +16,11 @@
 #include <time.h>
 #include <cctype>
 #include "esp_mac.h"
+#include "esp_wifi.h"
 
 #define MAX_MAC_LEN                     18
 #define MAX_ID_LEN                      13
 #define MAX_IP_LEN                      16
-#define MAX_SSIDWAN_LEN                 33
-#define MAX_PASSWORD_LEN                65
 #define MAX_CENTRAL_NAME_LEN            33
 #define MAX_TOKEN_ID_LEN                33
 #define MAX_TOKEN_PASSWORD_LEN          65
@@ -52,15 +51,11 @@ struct IDConfig {
     }
 };
 struct GlobalConfig {
-    char ssid[MAX_SSIDWAN_LEN];
-    char password[MAX_PASSWORD_LEN];
     char central_name[MAX_CENTRAL_NAME_LEN];
     char token_id[MAX_TOKEN_ID_LEN];
     char token_password[MAX_TOKEN_PASSWORD_LEN];
     char token_flag[MAX_TOKEN_FLAG_LEN];
     GlobalConfig() {
-        memset(ssid, 0, sizeof(ssid));
-        memset(password, 0, sizeof(password));
         memset(central_name, 0, sizeof(central_name));
         memset(token_id, 0, sizeof(token_id));
         memset(token_password, 0, sizeof(token_password));
@@ -68,19 +63,31 @@ struct GlobalConfig {
     }
 };
 struct GlobalConfigDTO {
-    char ssid[MAX_SSIDWAN_LEN];
-    char password[MAX_PASSWORD_LEN];
     char central_name[MAX_CENTRAL_NAME_LEN];
     char token_id[MAX_TOKEN_ID_LEN];
     char token_password[MAX_TOKEN_PASSWORD_LEN];
     char token_flag[MAX_TOKEN_FLAG_LEN];
     GlobalConfigDTO() {
-        memset(ssid, 0, sizeof(ssid));
-        memset(password, 0, sizeof(password));
         memset(central_name, 0, sizeof(central_name));
         memset(token_id, 0, sizeof(token_id));
         memset(token_password, 0, sizeof(token_password));
         memset(token_flag, 0, sizeof(token_flag));
+    }
+};
+struct CredentialConfig {
+    char ssid[MAX_SSID_LEN];
+    char password[MAX_PASSPHRASE_LEN];
+    CredentialConfig() {
+        memset(ssid, 0, sizeof(ssid));
+        memset(password, 0, sizeof(password));
+    }
+};
+struct CredentialConfigDTO {
+    char ssid[MAX_SSID_LEN];
+    char password[MAX_PASSPHRASE_LEN];
+    CredentialConfigDTO() {
+        memset(ssid, 0, sizeof(ssid));
+        memset(password, 0, sizeof(password));
     }
 };
 struct Device {
@@ -165,6 +172,22 @@ struct Page {
         mime = "";
     }
 };
+struct testSSID {
+    int fd;
+    char ssid[MAX_SSID_LEN];
+    char pass[MAX_PASSPHRASE_LEN];
+    testSSID() {
+        fd = 0;
+        memset(ssid, 0, sizeof(ssid));
+        memset(pass, 0, sizeof(pass));
+    }
+};
+enum class StorageCommand {
+    SAVE,DELETE,CREATE
+};
+enum class StorageStructType {
+    CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA
+};
 struct StorageRequest {
     StorageCommand command;
     StorageStructType type;
@@ -181,32 +204,28 @@ struct StorageRequest {
         response_event_id = EventId::NONE;
     }
 };
-enum class StorageCommand {
-    SAVE,DELETE,CREATE
-};
-enum class StorageStructType {
-    CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA
-};
 namespace StorageManager {
     // Ponteiros para as configurações globais na PSRAM
     extern GlobalConfig* cfg;
     extern IDConfig* id_cfg;
+    extern CredentialConfig* cd_cfg;
     extern WifiScanCache* scanCache;
     // Funções de utilidade
     bool isBlankOrEmpty(const char* str);
     bool isWifiCacheValid();
     void invalidateWifiCache();
+    std::string replacePlaceholders(const std::string& content, const std::string& search, const std::string& replace);
     // Funções para gerenciamento de páginas web
     void registerPage(const char* uri, Page* page);
     const Page* getPage(const char* uri);
     // Funções para gerenciamento de dispositivos
-    void registerDevice(const std::string& id, Device* device);
+    void registerDevice(Device* device);
     const Device* getDevice(const std::string& id);
     size_t getDeviceCount();
     std::vector<std::string> getDeviceIds();
     esp_err_t saveDevice(const std::string& id, Device* device_data);
     // Funções para gerenciamento de sensores
-    void registerSensor(const std::string& id, Sensor* sensor);
+    void registerSensor(Sensor* sensor);
     const Sensor* getSensor(const std::string& id);
     size_t getSensorCount();
     std::vector<std::string> getSensorIds();

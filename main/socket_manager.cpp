@@ -12,12 +12,12 @@ namespace SocketManager {
     static void info(int fd){
         cJSON* root = cJSON_CreateObject();
         if(!root){ESP_LOGE(TAG, "Falha ao criar objeto cJSON");return;}
-        cJSON_AddStringToObject(root, "cNome", GlobalConfigData::cfg->central_name);
+        cJSON_AddStringToObject(root, "cNome", StorageManager::cfg->central_name);
         cJSON_AddStringToObject(root, "isIA", "TRUEIA");
-        cJSON_AddStringToObject(root, "userToken", GlobalConfigData::cfg->token_id);
-        cJSON_AddStringToObject(root, "passToken", GlobalConfigData::cfg->token_password);
-        cJSON_AddStringToObject(root, "useUserToken", GlobalConfigData::cfg->token_flag);
-        cJSON_AddStringToObject(root, "token", GlobalConfigData::cfg->id);
+        cJSON_AddStringToObject(root, "userToken", StorageManager::cfg->token_id);
+        cJSON_AddStringToObject(root, "passToken", StorageManager::cfg->token_password);
+        cJSON_AddStringToObject(root, "useUserToken", StorageManager::cfg->token_flag);
+        cJSON_AddStringToObject(root, "token", StorageManager::id_cfg->id);
         for (int i = 1; i <= 3; ++i) {
             std::string device_id_str = std::to_string(i);
             const Device* dev = StorageManager::getDevice(device_id_str);
@@ -32,12 +32,12 @@ namespace SocketManager {
                 cJSON_AddStringToObject(root, ("dTempo" + device_id_str).c_str(), "0");
             }
         }
-        if(GlobalConfigData::cfg->wifi_cache.is_sta_connected){
+        if(StorageManager::scanCache->is_sta_connected){
             cJSON_AddStringToObject(root, "conexao", "con");
         } else {
             cJSON_AddStringToObject(root, "conexao", "dis");
         }
-        const char* ssid_value = (strlen(GlobalConfigData::cfg->ssid) == 0) ? "" : GlobalConfigData::cfg->ssid;
+        const char* ssid_value = (strlen(StorageManager::cd_cfg->ssid) == 0) ? "" : StorageManager::cd_cfg->ssid;
         cJSON_AddStringToObject(root, "ssid", ssid_value);
         const char* json_string = cJSON_PrintUnformatted(root);
         if(!json_string){ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");cJSON_Delete(root);return;}
@@ -91,12 +91,41 @@ namespace SocketManager {
         else if (strncmp(message.c_str(),"CONFIG",6) == 0) {
             const char* jsonString = message.c_str() + 6;
             ESP_LOGI(TAG, "Comando CONFIG recebido para fd=%d", fd);
-            // info(fd);
+            cJSON* root = cJSON_Parse(jsonString);
+            if (root == nullptr) {ESP_LOGE(TAG, "Falha ao fazer parse do JSON CONFIG");return ESP_OK;}
+            GlobalConfigDTO config_dto;
+            cJSON* cn = cJSON_GetObjectItem(root, "cNome");
+            cJSON* tf = cJSON_GetObjectItem(root, "userChoice");
+            cJSON* ti = cJSON_GetObjectItem(root, "userTk");
+            cJSON* tp = cJSON_GetObjectItem(root, "inpPassTk");
+            if (cn) strncpy(config_dto.central_name,cn->valuestring,sizeof(config_dto.central_name)-1);
+            if (tf) strncpy(config_dto.token_flag,tf->valuestring,sizeof(config_dto.token_flag)-1);
+            if (ti) strncpy(config_dto.token_id,ti->valuestring,sizeof(config_dto.token_id)-1);
+            if (tp) strncpy(config_dto.token_password,tp->valuestring,sizeof(config_dto.token_password)-1);
+            config_dto.central_name[sizeof(config_dto.central_name)-1]='\0';
+            config_dto.token_id[sizeof(config_dto.token_id)-1]='\0';
+            config_dto.token_password[sizeof(config_dto.token_password)-1]='\0';
+            config_dto.token_flag[sizeof(config_dto.token_flag)-1]='\0';
+            esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::CONFIG_DATA,&config_dto,sizeof(GlobalConfigDTO),fd,EventId::STO_CONFIGSAVED);
+            if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de CONFIG_DATA");}
+            else {ESP_LOGI(TAG, "Requisição CONFIG_DATA enfileirada com sucesso");}
+            cJSON_Delete(root);
         }
-        else if (strncmp(message.c_str(),"CREDENTIAL",9) == 0) {
-            const char* jsonString = message.c_str() + 6;
+        else if (strncmp(message.c_str(),"CREDENTIAL",10) == 0) {
+            const char* jsonString = message.c_str()+10;
             ESP_LOGI(TAG, "Comando CREDENTIAL recebido para fd=%d", fd);
-            // info(fd);
+            cJSON* root = cJSON_Parse(jsonString);
+            if (root == nullptr) {ESP_LOGE(TAG, "Falha ao fazer parse do JSON CREDENTIAL. JSON recebido: %s", jsonString); ret = ESP_FAIL;}
+            else {
+                cJSON* ssid = cJSON_GetObjectItem(root,"nomewifi");
+                cJSON* pass = cJSON_GetObjectItem(root,"inpSenha");
+                testSSID test;
+                test.fd = fd;
+                strncpy(test.ssid,ssid->valuestring,sizeof(test.ssid));
+                strncpy(test.pass,pass->valuestring,sizeof(test.pass));
+                EventBus::post(EventDomain::NETWORK,EventId::NET_TEST,&test,sizeof(test));
+                cJSON_Delete(root);
+            }
         }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
@@ -138,8 +167,8 @@ namespace SocketManager {
         if(data){memcpy(&client_fd,data,sizeof(int));ESP_LOGD(TAG,"onNetworkEvent: fd=%d, evt=%d",client_fd,(int)evt);}
         if (evt == EventId::NET_LISTOK) {
             ESP_LOGI(TAG, "NET_LISTOK recebido para fd=%d", client_fd);
-            const char* html_content = GlobalConfigData::cfg->wifi_cache.networks_html_ptr;
-            size_t content_len = GlobalConfigData::cfg->wifi_cache.networks_html_len;
+            const char* html_content = StorageManager::scanCache->networks_html_ptr;
+            size_t content_len = StorageManager::scanCache->networks_html_len;
             if (content_len > 0) {
                 esp_err_t ret = sendToClient(client_fd, html_content);
                 if (ret == ESP_OK) {ESP_LOGI(TAG, "Lista WiFi enviada para fd=%d (%zu bytes)", client_fd, content_len);}
@@ -149,6 +178,11 @@ namespace SocketManager {
                 const char* error_msg = "listNet<option value=''>Erro: cache vazio</option>";
                 sendToClient(client_fd, error_msg);
             }
+        }
+        else if (evt == EventId::NET_TESTSUCCESS) {
+            ESP_LOGI(TAG, "NET_TESTSUCCESS recebido para fd=%d", client_fd);
+            const char* message = "credentialOk";
+            esp_err_t ret = sendToClient(client_fd, message);
         }
         else {ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);}
     }
@@ -184,7 +218,7 @@ namespace SocketManager {
         return ESP_OK;
     }
     static void onWebEvent(void*, esp_event_base_t, int32_t id, void* data) {
-        ESP_LOGI(TAG, "→ onWebEvent chamado: id=%d", (int)id);  // ← NOVO LOG
+        ESP_LOGI(TAG, "→ onWebEvent chamado: id=%d", (int)id);
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::WEB_STARTED) {
             ESP_LOGI(TAG, "WEB_STARTED recebido, iniciando WebSocket...");
@@ -193,11 +227,24 @@ namespace SocketManager {
             else {ESP_LOGE(TAG, "HTTP server inválido no evento WEB_STARTED");}
         }
     }
+    static void onStorageEvent(void*, esp_event_base_t, int32_t id, void* data) {
+        ESP_LOGI(TAG, "→ onStorageEvent chamado: id=%d", (int)id);
+        int client_fd = -1;
+        EventId evt = static_cast<EventId>(id);
+        if (evt == EventId::STO_CONFIGSAVED) {
+            if(data){memcpy(&client_fd,data,sizeof(int));
+                ESP_LOGI(TAG,"STO_EVENT: fd=%d, evt=%d",client_fd,(int)evt);
+                const char* response = "configOk";
+                esp_err_t ret = sendToClient(client_fd,response);
+            }
+        }
+    }
     // Inicialização
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Socket Manager...");
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
+        EventBus::regHandler(EventDomain::STORAGE, &onStorageEvent, nullptr);
         EventBus::post(EventDomain::READY, EventId::SOC_READY);
         ESP_LOGI(TAG, "→ SOC_READY publicado");
         return ESP_OK;
