@@ -104,7 +104,8 @@ namespace Storage {
     }
     esp_err_t saveDeviceFile(Device* device) {
         if (!device) {ESP_LOGE(TAG, "Ponteiro de dispositivo nulo para salvar.");return ESP_ERR_INVALID_ARG;}
-        const char* file_path = (std::string("/littlefs/device/")+std::string(device->id)).c_str();
+        std::string full_path = std::string("/littlefs/device/") + std::string(device->id);
+        const char* file_path = full_path.c_str();
         FILE* f = fopen(file_path, "w");
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
         fprintf(f, "%s\n", device->id);
@@ -164,7 +165,8 @@ namespace Storage {
     }
     esp_err_t saveSensorFile(Sensor* sensor) {
         if (!sensor) {ESP_LOGE(TAG, "Ponteiro de sensor nulo para salvar.");return ESP_ERR_INVALID_ARG;}
-        const char* file_path = (std::string("/littlefs/sensor/")+std::string(sensor->id)).c_str();
+        std::string full_path = std::string("/littlefs/sensor/") + std::string(sensor->id);
+        const char* file_path = full_path.c_str();
         FILE* f = fopen(file_path, "w");
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
         fprintf(f, "%s\n", sensor->id);

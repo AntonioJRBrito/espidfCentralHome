@@ -25,8 +25,11 @@ namespace SocketManager {
     esp_err_t stop();
     // Envia mensagem para um cliente específico
     esp_err_t sendToClient(int fd, const char* message);
-    // Envia mensagem para todos os clientes conectados (broadcast)
-    esp_err_t broadcast(const char* message);
-    // Retorna número de clientes conectados
-    size_t getClientCount();
+    // Struct para fd e AID
+    struct WebSocketClient {
+        int fd;
+        uint32_t aid;
+        WebSocketClient(int file_descriptor, uint32_t association_id = 0) : fd(file_descriptor), aid(association_id) {}
+        bool operator==(int other_fd) const {return fd == other_fd;}
+    };
 }

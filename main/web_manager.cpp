@@ -6,8 +6,29 @@ namespace WebManager {
     static httpd_handle_t server = nullptr;
     static httpd_uri_t uri_handlers[30];
     static int uri_count = 0;
-    static uint32_t gerarTokenNumerico() {
-        return 10000000 + (esp_random() % 90000000);
+    static int fd_onclosed = 0;
+    static uint32_t gerarTokenNumerico() {return 10000000 + (esp_random() % 90000000);}
+    static TimerHandle_t shutdown_timer = nullptr;
+    // funções de beacon
+    void init_beacon(TimerHandle_t xTimer) {
+        ESP_LOGW(TAG, "Timer de encerramento expirou (inatividade)! Postando evento de desligamento.");
+        EventBus::post(EventDomain::WEB, EventId::WEB_STOPCLIENT,&fd_onclosed,sizeof(int));
+    }
+    void startShutdownTimer() {
+        if (shutdown_timer != nullptr) {
+            if (xTimerReset(shutdown_timer, 0) != pdPASS) {ESP_LOGE(TAG, "Falha ao iniciar/resetar o timer de encerramento!");}
+            else {ESP_LOGI(TAG, "Timer de encerramento iniciado/resetado.");}
+        } else {
+            ESP_LOGE(TAG, "Tentativa de iniciar timer de encerramento não inicializado!");
+        }
+    }
+    void stopShutdownTimer() {
+        if (shutdown_timer != nullptr) {
+            if (xTimerStop(shutdown_timer, 0) != pdPASS) {ESP_LOGE(TAG, "Falha ao parar o timer de encerramento!");}
+            else {ESP_LOGI(TAG, "Timer de encerramento parado.");}
+        } else {
+            ESP_LOGE(TAG, "Tentativa de parar timer de encerramento não inicializado!");
+        }
     }
     // Função para decodificar strings URL-encoded
     std::string url_decode(const std::string& encoded_string) {
@@ -66,7 +87,13 @@ namespace WebManager {
         httpd_resp_set_hdr(req, "Connection", "close");
         httpd_resp_send(req, (const char*)page->data, page->size);
         ESP_LOGI(TAG, "Servido (PSRAM): %s (%zu bytes)", uri.c_str(), page->size);
+        stopShutdownTimer();
         return ESP_OK;
+    }
+    static esp_err_t error_404_redirect_handler(httpd_req_t* req, httpd_err_code_t error) {
+        ESP_LOGW(TAG, "Erro HTTP %d na URI: %s. Redirecionando para a raiz.", error, req->uri);
+        stopShutdownTimer();
+        return redirect_to_root_handler(req);
     }
     // --- Handler para redirecionamento de captive portal ---
     static esp_err_t redirect_to_root_handler(httpd_req_t* req) {
@@ -74,85 +101,9 @@ namespace WebManager {
         httpd_resp_set_status(req, "302 Found");
         httpd_resp_set_hdr(req, "Location", "/");
         httpd_resp_send(req, NULL, 0);
+        stopShutdownTimer();
         return ESP_OK;
     }
-    // --- Handlers para configuração e controle da central ---
-    // static esp_err_t set_info_handler(httpd_req_t* req) {
-    //     ESP_LOGI(TAG, "POST /SET/info");
-    //     size_t total_len = req->content_len;
-    //     if (total_len == 0) {
-    //         ESP_LOGW(TAG, "Corpo da requisição POST vazio.");
-    //         httpd_resp_sendstr(req, "Corpo da requisição vazio.");
-    //         return ESP_OK;
-    //     }
-    //     char* buf = (char*)malloc(total_len + 1);
-    //     if (!buf) {
-    //         ESP_LOGE(TAG, "Falha ao alocar memória para o corpo da requisição.");
-    //         httpd_resp_send_500(req);
-    //         return ESP_FAIL;
-    //     }
-    //     int ret = httpd_req_recv(req, buf, total_len);
-    //     if (ret <= 0) {
-    //         if (ret == HTTPD_SOCK_ERR_TIMEOUT) {httpd_resp_send_408(req);}
-    //         else {ESP_LOGE(TAG, "Erro ao ler corpo da requisição: %d", ret);httpd_resp_send_500(req);}
-    //         free(buf);
-    //         return ESP_FAIL;
-    //     }
-    //     buf[total_len] = '\0';
-    //     ESP_LOGI(TAG, "Raw POST body received: '%s'", buf);
-    //     std::string post_body(buf);
-    //     free(buf);
-        // CentralInfo received_info;
-    //     SSIDInfo received_SSIDinfo;
-    //     std::string value;
-    //     bool changeSSID=false;
-    //     value = extract_post_param(post_body, "nomewifi");
-    //     if (!value.empty()) {
-    //         changeSSID=true;
-    //         strncpy(received_SSIDinfo.ssid, value.c_str(), sizeof(received_SSIDinfo.ssid) - 1);
-    //         received_SSIDinfo.ssid[sizeof(received_SSIDinfo.ssid) - 1] = '\0';
-    //         ESP_LOGI(TAG, "SSID: %s", received_SSIDinfo.ssid);
-    //     }
-    //     value = extract_post_param(post_body, "inpSenha");
-    //     if (!value.empty()) {
-    //         strncpy(received_SSIDinfo.password, value.c_str(), sizeof(received_SSIDinfo.password) - 1);
-    //         received_SSIDinfo.password[sizeof(received_SSIDinfo.password) - 1] = '\0';
-    //         ESP_LOGI(TAG, "Password: %s", received_SSIDinfo.password);
-    //     }
-    //     value = extract_post_param(post_body, "cNome");
-    //     if (!value.empty()) {
-    //         strncpy(received_info.central_name, value.c_str(), sizeof(received_info.central_name) - 1);
-    //         received_info.central_name[sizeof(received_info.central_name) - 1] = '\0';
-    //         ESP_LOGI(TAG, "Central Name: %s", received_info.central_name);
-    //     }
-    //     value = extract_post_param(post_body, "userTk");
-    //     if (!value.empty()) {
-    //         strncpy(received_info.token_id, value.c_str(), sizeof(received_info.token_id) - 1);
-    //         received_info.token_id[sizeof(received_info.token_id) - 1] = '\0';
-    //         ESP_LOGI(TAG, "Token ID: %s", received_info.token_id);
-    //     }
-    //     value = extract_post_param(post_body, "inpPassTk");
-    //     if (!value.empty()) {
-    //         strncpy(received_info.token_password, value.c_str(), sizeof(received_info.token_password) - 1);
-    //         received_info.token_password[sizeof(received_info.token_password) - 1] = '\0';
-    //         ESP_LOGI(TAG, "Token Password: %s", received_info.token_password);
-    //     }
-    //     value = extract_post_param(post_body, "userChoice");
-    //     if (!value.empty()) {
-    //         strncpy(received_info.token_flag, value.c_str(), sizeof(received_info.token_flag) - 1);
-    //         received_info.token_flag[sizeof(received_info.token_flag) - 1] = '\0';
-    //         ESP_LOGI(TAG, "Token Flag: %s", received_info.token_flag);
-    //     }
-    //     esp_err_t err_ct = StorageManager::enqueueRequest(
-    //         StorageCommand::SAVE,
-    //         StorageStructType::CONFIG_DATA,
-    //         &received_info,
-    //         sizeof(CentralInfo)
-    //     );
-        
-    //     httpd_resp_sendstr(req, "SET info data placeholder");
-    //     return ESP_OK;
-    // }
     static esp_err_t login_auth_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /GET/login (senha pura)");
         std::string response_str = "erro";
@@ -190,18 +141,31 @@ namespace WebManager {
         }
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_send(req, response_str.c_str(), response_str.length());
+        // resetShutdownTimer();
         return ESP_OK;
     }
     static esp_err_t get_config_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "GET /GET/isok");
         // TODO: Implementar lógica para obter configuração
         httpd_resp_sendstr(req, "Config data placeholder");
+        // resetShutdownTimer();
         return ESP_OK;
     }
     static esp_err_t encerrar_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "POST /encerrar");
-        // TODO: Implementar lógica de encerramento a conexão (beacon)
-        httpd_resp_sendstr(req, "Encerrar command received placeholder");
+        std::string uri_str(req->uri);
+        size_t last_slash_pos = uri_str.rfind('/');
+        if (last_slash_pos == std::string::npos || last_slash_pos == uri_str.length() - 1) {
+            ESP_LOGE(TAG, "URI inválida para /encerrar/&lt;fd&gt;: %s", req->uri);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid URI format");
+            return ESP_FAIL;
+        }
+        std::string fd_str = uri_str.substr(last_slash_pos + 1);
+        fd_onclosed = 0;
+        if(std::sscanf(fd_str.c_str(),"%d",&fd_onclosed)!=1){ESP_LOGW(TAG,"FD inválido na URI: '%s'. Usando FD 0.",fd_str.c_str());}
+        startShutdownTimer();
+        ESP_LOGI(TAG, "Encerrar command received, timer started para %d.",fd_onclosed);
+        httpd_resp_sendstr(req, "Encerrar command received, shutdown timer started/reset.");
         return ESP_OK;
     }
     // --- Handlers para HA ---
@@ -323,15 +287,16 @@ namespace WebManager {
         registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
         // 3. Rotas de configuração e controle da central
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
-        registerUriHandler("/GET/isok",HTTP_GET,get_config_handler);
-        registerUriHandler("/encerrar",HTTP_POST,encerrar_handler);
+        registerUriHandler("/encerrar/*",HTTP_POST,encerrar_handler);
+        httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, error_404_redirect_handler);
         // 4. Rotas ha
         registerUriHandler("/description.xml",HTTP_GET,upnp_description_handler);
         registerUriHandler("/api",(httpd_method_t)HTTP_ANY,api_handler);
 
+        ESP_LOGI(TAG, "✓ Handler 404 registrado para redirecionar para a raiz.");
+
         //   putgetSTR="/api/"+ID+"/lights";
 
-        // 6. Handler catch-all para 404
         ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
@@ -345,27 +310,14 @@ namespace WebManager {
     }
     static void onWebEvent(void*, esp_event_base_t, int32_t id, void*) {
     }
-    static void onSocketEvent(void*, esp_event_base_t, int32_t id, void*) {
-        if (static_cast<EventId>(id)==EventId::SOC_STARTED) {
-            ESP_LOGI(TAG, "SOC_STARTED → iniciando '*'");
-            httpd_uri_t uri_buf;
-            uri_buf.uri = "*";
-            uri_buf.method = (httpd_method_t)HTTP_ANY;
-            uri_buf.handler = redirect_to_root_handler;
-            esp_err_t ret = httpd_register_uri_handler(server, &uri_buf);
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "✓ URI '*' registrada com sucesso");
-            } else {
-                ESP_LOGE(TAG, "✗ Falha ao registrar URI '*': %s", esp_err_to_name(ret));
-            }
-            ESP_LOGI(TAG, "→ '*' publicado");
-        }
-    }
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
-        EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
+        // EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
+        shutdown_timer = xTimerCreate("ShutdownTimer",pdMS_TO_TICKS(5000),pdFALSE,(void*)0,init_beacon);
+        if(shutdown_timer==nullptr){ESP_LOGE(TAG,"Falha ao criar o timer de encerramento!");return ESP_FAIL;}
+        ESP_LOGI(TAG, "Timer de encerramento criado.");
         EventBus::post(EventDomain::READY, EventId::WEB_READY);
         ESP_LOGI(TAG, "→ WEB_READY publicado; aguardando NET_IFOK");
         return ESP_OK;

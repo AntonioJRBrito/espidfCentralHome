@@ -182,6 +182,12 @@ struct testSSID {
         memset(pass, 0, sizeof(pass));
     }
 };
+struct CurrentTime {
+    int dayOfWeek; // 0 = Domingo
+    int hour;
+    int minute;
+    CurrentTime():dayOfWeek(0),hour(0),minute(0) {}
+};
 enum class StorageCommand {
     SAVE,DELETE,CREATE
 };

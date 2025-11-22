@@ -21,6 +21,7 @@
 #include "esp_heap_caps.h"
 #include <algorithm>
 #include "storage_manager.hpp"
+#include "freertos/timers.h"
 
 namespace NetManager
 {

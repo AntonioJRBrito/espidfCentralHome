@@ -217,8 +217,11 @@ namespace StorageManager {
                                         std::string device_id_str(device_dto->id);
                                         Device* existing_device = getMutableDeviceInternal(device_id_str);
                                         if (existing_device) {
-                                            memcpy(existing_device, device_dto, sizeof(DeviceDTO));
+                                            memcpy(existing_device,device_dto,sizeof(DeviceDTO));
                                             err = Storage::saveDeviceFile(existing_device);
+                                            if(request.response_event_id!=EventId::NONE){
+                                                EventBus::post(EventDomain::STORAGE,request.response_event_id,&existing_device->id,sizeof(existing_device->id));
+                                            }
                                             ESP_LOGI(TAG, "Dispositivo '%s' atualizado na PSRAM e salvo na flash. Status: %s", device_id_str.c_str(), esp_err_to_name(err));
                                         } else {
                                             ESP_LOGW(TAG, "SAVE DEVICE_DATA: Dispositivo '%s' não encontrado na PSRAM para atualização.", device_id_str.c_str());
@@ -261,7 +264,7 @@ namespace StorageManager {
                     xSemaphoreGive(s_flash_mutex);
                 } else {
                     ESP_LOGE(TAG, "Falha ao adquirir mutex da flash! Requisição não processada.");
-                    esp_err_t mutex_err = ESP_ERR_TIMEOUT; // Define o erro para timeout do mutex
+                    // esp_err_t mutex_err = ESP_ERR_TIMEOUT; Não vou fazer nada.
                 }
                 if (request.data_ptr) {
                     heap_caps_free(request.data_ptr);

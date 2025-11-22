@@ -18,17 +18,18 @@
         let tkVisivel=true;
         let tentativas=0;
         let timeoutId;
+        let fileDescriptor;
         const socket=new WebSocket(`ws://${location.host}/ws`);
         const labelwifi=document.getElementById('labelNomewifi');
         // comportamentos
         document.getElementById('imgLogin').addEventListener('click',showPass);
         document.getElementById('imgSenha').addEventListener('click',showPass);
         document.getElementById('imgPassTk').addEventListener('click',showPassTk);
-        document.getElementById("btnDispositivo").addEventListener("click",login);
-        document.getElementById("btnCentral").addEventListener("click",central);
-        document.getElementById("btnAgenda").addEventListener("click",agenda);
-        document.getElementById("btnAutomacao").addEventListener("click",automacao);
-        document.getElementById("btnAtualizar").addEventListener("click",atualizar);
+        document.getElementById("btnDispositivo").addEventListener("click",()=>handleLoginAndRedirect(null));
+        document.getElementById("btnCentral").addEventListener("click",()=>handleLoginAndRedirect('central.html'));
+        document.getElementById("btnAgenda").addEventListener("click",()=>handleLoginAndRedirect('agenda.html'));
+        document.getElementById("btnAutomacao").addEventListener("click",()=>handleLoginAndRedirect('automacao.html'));
+        document.getElementById("btnAtualizar").addEventListener("click",()=>handleLoginAndRedirect('atualizar.html'));
         document.getElementById('btnSair').addEventListener("click",exit);
         document.getElementById('btnCancelar').addEventListener("click",getCancel);
         document.getElementById('formWIFI').addEventListener('submit',netTest);
@@ -57,7 +58,7 @@
           window.close(); 
         }
         function getExit(){
-          navigator.sendBeacon("/encerrar");
+          navigator.sendBeacon("/encerrar/"+fileDescriptor);
         }
         function getCancel(){
           event.preventDefault();
@@ -80,40 +81,22 @@
           document.getElementById('inpPassTk').type=tkVisivel?"text":"password";
           document.getElementById('imgPassTk').innerHTML=tkVisivel?icons["eye"]:icons["eye_off"];
         }
-        function login(event){
-          event.preventDefault();        
-          const inpLogin=document.getElementById('inpSenha').value=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'text/plain'},body:inpLogin})
-          .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){labelwifi.style.color="green";showDiv('divIndex');}else{alert("ERRO! Senha incorreta!");}})
-          .catch(err=>{showMessage('erroCom');});
-        };
-        function central() {
-          const senha=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`senha=${encodeURIComponent(senha)}`})
-          .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`central.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
-          .catch(err=>{showMessage('erroCom');});
-        }
-        function agenda() {
-          const senha=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`senha=${encodeURIComponent(senha)}`})
-          .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`agenda.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
-          .catch(err=>{showMessage('erroCom');});
-        }
-        function automacao() {
-          const senha=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`senha=${encodeURIComponent(senha)}`})
-          .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`automacao.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
-          .catch(err=>{showMessage('erroCom');});
-        }
-        function atualizar() {
-          const senha=document.getElementById('inpLogin').value;
-          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`senha=${encodeURIComponent(senha)}`})
-          .then(res=>res.text())
-          .then(data=>{if(data.startsWith("sucesso:")){sessionStorage.setItem("autenticado","sim");const token=data.split(":")[1];window.location.href=`atualizar.html?token=${token}`;}else{alert("ERRO! Senha incorreta!");}})
+        function handleLoginAndRedirect(targetPage){
+          senha_anterior=document.getElementById('inpSenha').value=document.getElementById('inpLogin').value;
+          fetch("/GET/login",{method:"POST",headers:{'Content-Type':'text/plain'},body:senha_anterior})
+          .then(res => res.text())
+          .then(data => {
+            if(data.startsWith("sucesso:")){
+              if(targetPage){
+                sessionStorage.setItem("autenticado", "sim");
+                const token=data.split(":")[1];
+                window.location.href=`${targetPage}?token=${token}`;
+              }else{
+                labelwifi.style.color = "green";
+                showDiv('divIndex');
+              }
+            }else{alert("ERRO! Senha incorreta!");}
+          })
           .catch(err=>{showMessage('erroCom');});
         }
         function showTime1(){
@@ -134,7 +117,7 @@
           for(const pair of formData.entries()){dataToSend[pair[0]]=pair[1];}
           const message="CONFIG"+JSON.stringify(dataToSend);
           socket.send(message);
-          timeoutId=setTimeout(()=>{showMessage('erroCom');timeoutId=null;},15000);
+          timeoutId=setTimeout(()=>{showMessage('erroCom');timeoutId=null;},20000);
         }
         socket.onmessage=function(event){
           try{
@@ -149,6 +132,8 @@
             if(event.data.startsWith("configOk")){
               clearTimeout(timeoutId);
               const currentSelectedWifi=document.getElementById('nomewifi').value;
+              console.log("currentSelectedWifi");
+              console.log(currentSelectedWifi);
               const currentSelectedPass=document.getElementById('inpSenha').value;
               const wifiChanged=((currentSelectedWifi!==rede_conectada)||(currentSelectedPass!==senha_anterior));
               if(wifiChanged){
@@ -157,7 +142,7 @@
                 dataToSend['inpSenha']=document.getElementById('inpSenha').value;
                 const message="CREDENTIAL"+JSON.stringify(dataToSend);
                 socket.send(message);
-                timeoutId=setTimeout(()=>{showMessage('erroSid');timeoutId=null;},30000);
+                timeoutId=setTimeout(()=>{showMessage('erroSid');timeoutId=null;},60000);
               }else{
                 showMessage('sucesso');
               }
@@ -165,6 +150,10 @@
             if(event.data.startsWith("credentialOk")){
               clearTimeout(timeoutId);
               showMessage('sucesso');
+            }
+            if(event.data.startsWith("fd")){
+              const msg=event.data.substring(2);
+              fileDescriptor=msg;
             }
             if(event.data.startsWith("listInfo")){
               clearTimeout(timeoutId);
@@ -197,6 +186,14 @@
                 showTime2();
                 showTime3();
               }
+            }
+            if(event.data.startsWith("errorRevert")){
+              clearTimeout(timeoutId);
+              {showMessage('erroRev');};
+            }
+            if(event.data.startsWith("errorTry")){
+              clearTimeout(timeoutId);
+              {showMessage('erroSid');}
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };
