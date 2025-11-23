@@ -132,8 +132,6 @@
             if(event.data.startsWith("configOk")){
               clearTimeout(timeoutId);
               const currentSelectedWifi=document.getElementById('nomewifi').value;
-              console.log("currentSelectedWifi");
-              console.log(currentSelectedWifi);
               const currentSelectedPass=document.getElementById('inpSenha').value;
               const wifiChanged=((currentSelectedWifi!==rede_conectada)||(currentSelectedPass!==senha_anterior));
               if(wifiChanged){

@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <cstring>
-#include <new>
 #include <cstddef>
 #include <fstream>
 #include <vector>

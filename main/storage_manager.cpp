@@ -42,6 +42,15 @@ namespace StorageManager {
         while((pos=result.find(search,pos))!=std::string::npos){result.replace(pos,search.length(),replace);pos+=replace.length();}
         return result;
     }
+    std::vector<std::string> splitString(const std::string& s, char delimiter) {
+        std::vector<std::string> tokens;
+        std::string token;
+        std::istringstream tokenStream(s);
+        while (std::getline(tokenStream, token, delimiter)) {
+            tokens.push_back(token);
+        }
+        return tokens;
+    }
     // --- Gerenciamento de Páginas Web ---
     void registerPage(const char* uri, Page* p) {
         pageMap[uri] = p;
@@ -80,14 +89,6 @@ namespace StorageManager {
         for (const auto& pair : deviceMap) {ids.push_back(pair.first);}
         return ids;
     }
-    esp_err_t saveDevice(const std::string& id, Device* device_data) {
-        ESP_LOGI(TAG, "saveDevice (esqueleto): Criando/Atualizando dispositivo '%s'", id.c_str());
-        // 1. Alocar um novo Device* na PSRAM.
-        // 2. Copiar os dados de device_data para o novo Device*.
-        // 3. Chamar registerDevice para adicioná-lo ao deviceMap.
-        // 4. Enfileirar uma requisição SAVE para StorageStructType::DEVICE_DATA.
-        return ESP_OK;
-    }
     // --- Gerenciamento de Sensores ---
     void registerSensor(Sensor* sensor) {
         auto it = sensorMap.find(std::string(sensor->id));
@@ -117,14 +118,6 @@ namespace StorageManager {
         for (const auto& pair : sensorMap) {ids.push_back(pair.first);}
         return ids;
     }
-    esp_err_t saveSensor(const std::string& id, Sensor* sensor_data) {
-        ESP_LOGI(TAG, "saveSensor (esqueleto): Criando/Atualizando sensor '%s'", id.c_str());
-        // 1. Alocar um novo Sensor* na PSRAM.
-        // 2. Copiar os dados de sensor_data para o novo Sensor*.
-        // 3. Chamar registerSensor para adicioná-lo ao sensorMap.
-        // 4. Enfileirar uma requisição SAVE para StorageStructType::SENSOR_DATA.
-        return ESP_OK;
-    }
     // --- Handlers de Eventos ---
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
         EventId evt = static_cast<EventId>(id);
@@ -134,9 +127,6 @@ namespace StorageManager {
                 EventBus::post(EventDomain::STORAGE, EventId::STO_SSIDOK);
             }
         }
-    }
-    void onStorageEvent(void*, esp_event_base_t, int32_t, void*) {
-        // TODO: Implementar lógica para eventos de armazenamento, se necessário
     }
     // --- Enfileiramento de Requisições ---
     esp_err_t enqueueRequest(StorageCommand cmd, StorageStructType type, const void* data_to_copy, size_t data_len, int client_fd, EventId response_event_id) {
@@ -178,14 +168,13 @@ namespace StorageManager {
                                 {
                                     if (request.data_ptr && request.data_len == sizeof(GlobalConfigDTO)) {
                                         memcpy(cfg, request.data_ptr, sizeof(GlobalConfigDTO));
-                                        err = Storage::saveGlobalConfigFile(cfg);
+                                        Storage::saveGlobalConfigFile(cfg);
                                         ESP_LOGI(TAG, "GlobalConfig salvo na flash. Status: %s", esp_err_to_name(err));
                                         if(request.response_event_id!=EventId::NONE){
                                             EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.client_fd,sizeof(int));
                                         }
                                     } else {
                                         ESP_LOGE(TAG, "SAVE CONFIG_DATA: Dados inválidos ou tamanho incorreto.");
-                                        err = ESP_ERR_INVALID_ARG;
                                     }
                                     break;
                                 }
@@ -193,22 +182,14 @@ namespace StorageManager {
                                 {
                                     if (request.data_ptr && request.data_len == sizeof(CredentialConfigDTO)) {
                                         memcpy(cd_cfg, request.data_ptr, sizeof(CredentialConfigDTO));
-                                        err = Storage::saveCredentialConfigFile(cd_cfg);
+                                        Storage::saveCredentialConfigFile(cd_cfg);
                                         ESP_LOGI(TAG, "CredentialConfig salvo na flash. Status: %s", esp_err_to_name(err));
                                         if(request.response_event_id!=EventId::NONE){
                                             EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.client_fd,sizeof(int));
                                         }
                                     } else {
                                         ESP_LOGE(TAG, "SAVE CONFIG_DATA: Dados inválidos ou tamanho incorreto.");
-                                        err = ESP_ERR_INVALID_ARG;
                                     }
-                                    break;
-                                }
-                                case StorageStructType::SENSOR_DATA: 
-                                {
-                                    ESP_LOGI(TAG, "Salvando SENSOR_DATA (TODO)");
-                                    // TODO: Implementar lógica para SENSOR_DATA
-                                    err = ESP_ERR_NOT_SUPPORTED;
                                     break;
                                 }
                                 case StorageStructType::DEVICE_DATA: {
@@ -217,20 +198,37 @@ namespace StorageManager {
                                         std::string device_id_str(device_dto->id);
                                         Device* existing_device = getMutableDeviceInternal(device_id_str);
                                         if (existing_device) {
-                                            memcpy(existing_device,device_dto,sizeof(DeviceDTO));
-                                            err = Storage::saveDeviceFile(existing_device);
-                                            if(request.response_event_id!=EventId::NONE){
-                                                EventBus::post(EventDomain::STORAGE,request.response_event_id,&existing_device->id,sizeof(existing_device->id));
+                                            memcpy(existing_device, device_dto, sizeof(DeviceDTO));
+                                            Storage::saveDeviceFile(existing_device);
+                                            if (request.response_event_id != EventId::NONE) {
+                                                EventBus::post(EventDomain::STORAGE, request.response_event_id, &existing_device->id, sizeof(existing_device->id));
                                             }
                                             ESP_LOGI(TAG, "Dispositivo '%s' atualizado na PSRAM e salvo na flash. Status: %s", device_id_str.c_str(), esp_err_to_name(err));
                                         } else {
-                                            ESP_LOGW(TAG, "SAVE DEVICE_DATA: Dispositivo '%s' não encontrado na PSRAM para atualização.", device_id_str.c_str());
-                                            err = ESP_ERR_NOT_FOUND;
+                                            ESP_LOGI(TAG, "SAVE DEVICE_DATA: Dispositivo '%s' não encontrado na PSRAM. Alocando e registrando novo dispositivo.", device_id_str.c_str());
+                                            Device* new_device_ptr = (Device*)heap_caps_malloc(sizeof(Device), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                                            if (!new_device_ptr) {
+                                                ESP_LOGE(TAG, "SAVE DEVICE_DATA: Falha ao alocar memória para novo dispositivo '%s' na PSRAM.", device_id_str.c_str());
+                                            } else {
+                                                memcpy(new_device_ptr, device_dto, sizeof(DeviceDTO));
+                                                registerDevice(new_device_ptr); 
+                                                Storage::saveDeviceFile(new_device_ptr);
+                                                if (request.response_event_id != EventId::NONE) {
+                                                    EventBus::post(EventDomain::STORAGE, request.response_event_id, &new_device_ptr->id, sizeof(new_device_ptr->id));
+                                                }
+                                                ESP_LOGI(TAG, "Novo dispositivo '%s' alocado na PSRAM, registrado e salvo na flash. Status: %s", device_id_str.c_str(), esp_err_to_name(err));
+                                            }
                                         }
                                     } else {
                                         ESP_LOGE(TAG, "SAVE DEVICE_DATA: Dados inválidos ou tamanho incorreto.");
-                                        err = ESP_ERR_INVALID_ARG;
                                     }
+                                    break;
+                                }
+                                case StorageStructType::SENSOR_DATA: 
+                                {
+                                    ESP_LOGI(TAG, "Salvando SENSOR_DATA (TODO)");
+                                    // TODO: Implementar lógica para SENSOR_DATA
+                                    err = ESP_ERR_NOT_SUPPORTED;
                                     break;
                                 }
                                 case StorageStructType::AUTOMA_DATA: {
@@ -251,12 +249,6 @@ namespace StorageManager {
                         case StorageCommand::DELETE: {
                             ESP_LOGI(TAG, "Processando DELETE para Tipo=%d (TODO)", static_cast<int>(request.type));
                             // TODO: Implementar lógica de DELETE
-                            err = ESP_ERR_NOT_SUPPORTED;
-                            break;
-                        }
-                        case StorageCommand::CREATE: {
-                            ESP_LOGI(TAG, "Processando CREATE para Tipo=%d (TODO)", static_cast<int>(request.type)); // Corrigido log
-                            // TODO: Implementar lógica de CREATE
                             err = ESP_ERR_NOT_SUPPORTED;
                             break;
                         }

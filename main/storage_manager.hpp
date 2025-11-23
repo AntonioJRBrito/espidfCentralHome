@@ -17,6 +17,8 @@
 #include <cctype>
 #include "esp_mac.h"
 #include "esp_wifi.h"
+#include <sstream>
+#include <cstdlib>
 
 #define MAX_MAC_LEN                     18
 #define MAX_ID_LEN                      13
@@ -166,11 +168,7 @@ struct Page {
     void* data;
     size_t size;
     std::string mime;
-    Page() {
-        data = nullptr;
-        size = 0;
-        mime = "";
-    }
+    Page(char* d, size_t s, const std::string& m) : data(d), size(s), mime(m) {}
 };
 struct testSSID {
     int fd;
@@ -189,7 +187,7 @@ struct CurrentTime {
     CurrentTime():dayOfWeek(0),hour(0),minute(0) {}
 };
 enum class StorageCommand {
-    SAVE,DELETE,CREATE
+    SAVE,DELETE
 };
 enum class StorageStructType {
     CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA
@@ -221,6 +219,7 @@ namespace StorageManager {
     bool isWifiCacheValid();
     void invalidateWifiCache();
     std::string replacePlaceholders(const std::string& content, const std::string& search, const std::string& replace);
+    std::vector<std::string> splitString(const std::string& s, char delimiter);
     // Funções para gerenciamento de páginas web
     void registerPage(const char* uri, Page* page);
     const Page* getPage(const char* uri);
@@ -229,16 +228,13 @@ namespace StorageManager {
     const Device* getDevice(const std::string& id);
     size_t getDeviceCount();
     std::vector<std::string> getDeviceIds();
-    esp_err_t saveDevice(const std::string& id, Device* device_data);
     // Funções para gerenciamento de sensores
     void registerSensor(Sensor* sensor);
     const Sensor* getSensor(const std::string& id);
     size_t getSensorCount();
     std::vector<std::string> getSensorIds();
-    esp_err_t saveSensor(const std::string& id, Sensor* sensor_data);
     // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
-    void onStorageEvent(void*, esp_event_base_t, int32_t, void*);
     // Função para enfileirar requisições de armazenamento
     esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,int client_fd=-1,EventId response_event_id=EventId::NONE);
     // Função de inicialização

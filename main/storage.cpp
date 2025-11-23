@@ -51,7 +51,8 @@ namespace Storage {
         fclose(f);
         void* page_mem = heap_caps_malloc(sizeof(Page), MALLOC_CAP_SPIRAM);
         if (!page_mem) {ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", k);heap_caps_free(buf);return;}
-        Page* p_psram = new (page_mem) Page();
+        Page* p_psram = reinterpret_cast<Page*>(page_mem);
+        memset(p_psram, 0, sizeof(Page));
         p_psram->data = buf;
         p_psram->size = sz;
         p_psram->mime = m;
@@ -65,10 +66,8 @@ namespace Storage {
         if(!f){ESP_LOGW(TAG, "Arquivo de dispositivo ausente: %s", path);return;}
         void* dev_mem = heap_caps_malloc(sizeof(Device), MALLOC_CAP_SPIRAM);
         if(!dev_mem){ESP_LOGE(TAG, "Falha ao alocar PSRAM %s", id_from_filename);fclose(f);return;}
-        Device* dev = new (dev_mem) Device();
-        memset(dev->id, 0, sizeof(dev->id));
-        memset(dev->name, 0, sizeof(dev->name));
-        memset(dev->x_str, 0, sizeof(dev->x_str));
+        Device* dev = reinterpret_cast<Device*>(dev_mem);
+        memset(dev, 0, sizeof(Device));
         strncpy(dev->id, id_from_filename, sizeof(dev->id) - 1);dev->id[sizeof(dev->id) - 1] = '\0';
         char line[128];
         int index = 0;
@@ -108,7 +107,6 @@ namespace Storage {
         const char* file_path = full_path.c_str();
         FILE* f = fopen(file_path, "w");
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
-        fprintf(f, "%s\n", device->id);
         fprintf(f, "%s\n", device->name);
         fprintf(f, "%u\n", device->type);
         fprintf(f, "%u\n", device->time);
@@ -127,10 +125,8 @@ namespace Storage {
         if(!f){ESP_LOGW(TAG, "Arquivo de sensor ausente: %s", path);return;}
         void* sen_mem = heap_caps_malloc(sizeof(Sensor), MALLOC_CAP_SPIRAM);
         if(!sen_mem){ESP_LOGE(TAG, "Falha ao alocar PSRAM %s", id_from_filename);fclose(f);return;}
-        Sensor* sen = new (sen_mem) Sensor();
-        memset(sen->id, 0, sizeof(sen->id));
-        memset(sen->name, 0, sizeof(sen->name));
-        memset(sen->x_str, 0, sizeof(sen->x_str));
+        Sensor* sen = reinterpret_cast<Sensor*>(sen_mem);
+        memset(sen, 0, sizeof(Sensor));
         strncpy(sen->id,id_from_filename,sizeof(sen->id)-1);sen->id[sizeof(sen->id) - 1] = '\0';
         char line[128];
         int index = 0;
@@ -169,7 +165,7 @@ namespace Storage {
         const char* file_path = full_path.c_str();
         FILE* f = fopen(file_path, "w");
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
-        fprintf(f, "%s\n", sensor->id);
+        // ainda tem que ver como sensor vem...
         fprintf(f, "%s\n", sensor->name);
         fprintf(f, "%u\n", sensor->type);
         fprintf(f, "%u\n", sensor->time);

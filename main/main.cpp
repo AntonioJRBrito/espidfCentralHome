@@ -36,11 +36,4 @@ extern "C" void app_main(void) {
     DeviceManager::init();
     BleManager::init();
     RtcManager::init();
-    // int counter = 1;
-    // while (true) {
-    //     vTaskDelay(pdMS_TO_TICKS(2000));
-    //     char msg[32];
-    //     snprintf(msg, sizeof(msg), "PING %d", counter++);
-    //     EventBus::post(EventDomain::NETWORK,EventId::NET_IFREADY,msg,strlen(msg)+1);
-    // }
 }
