@@ -99,6 +99,8 @@
     "thread": "cpp",
     "cinttypes": "cpp",
     "typeinfo": "cpp",
-    "variant": "cpp"
+    "variant": "cpp",
+    "ranges": "cpp",
+    "shared_mutex": "cpp"
   }
 }

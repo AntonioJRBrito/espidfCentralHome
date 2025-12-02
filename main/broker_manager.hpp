@@ -14,10 +14,6 @@
 #include <algorithm>
 #include "storage_manager.hpp"
 
-#define MAX_MQTT_CLIENT_ID_LEN 23
-#define MAX_MQTT_TOPIC_LEN 64
-#define MAX_DEVICE_ID_LEN 23
-
 namespace BrokerManager
 {
     struct ClientSession {

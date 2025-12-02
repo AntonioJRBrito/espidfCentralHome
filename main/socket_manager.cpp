@@ -104,18 +104,21 @@ namespace SocketManager {
             if (root == nullptr) {ESP_LOGE(TAG, "Falha ao fazer parse do JSON CONFIG"); ret = ESP_FAIL;}
             else {
                 for (int i = 1; i <= 3; ++i) {
-                    std::string device_id_str = std::to_string(i);
-                    const char* device_id_c_str = device_id_str.c_str();
-                    const Device* const_device_ptr = StorageManager::getDevice(device_id_str);
+                    // std::string device_id_str = std::to_string(i);
+                    // const char* device_id_c_str = device_id_str.c_str();
+                    // const Device* const_device_ptr = StorageManager::getDevice(device_id_str);
                     DeviceDTO device_dto;
-                    if (const_device_ptr) {
-                        memcpy(&device_dto, const_device_ptr, sizeof(DeviceDTO));
-                        ESP_LOGI(TAG, "Device com ID '%s' encontrado na memória. Copiando para DTO local.", device_id_c_str);
-                    } else {
-                        ESP_LOGW(TAG, "Device com ID '%s' não encontrado na memória. Criando um novo DTO local.", device_id_c_str);
-                        strncpy(device_dto.id, device_id_c_str, sizeof(device_dto.id) - 1);
-                        device_dto.id[sizeof(device_dto.id) - 1] = '\0';
-                    }
+                    snprintf(device_dto.id, sizeof(device_dto.id), "%d", i);
+                    // strncpy(device_dto.id, device_id_c_str, sizeof(device_dto.id) - 1);
+                    // device_dto.id[sizeof(device_dto.id) - 1] = '\0';
+                    // if (const_device_ptr) {
+                    //     memcpy(&device_dto, const_device_ptr, sizeof(DeviceDTO));
+                    //     ESP_LOGI(TAG, "Device com ID '%s' encontrado na memória. Copiando para DTO local.", device_id_c_str);
+                    // } else {
+                    //     ESP_LOGW(TAG, "Device com ID '%s' não encontrado na memória. Criando um novo DTO local.", device_id_c_str);
+                    //     strncpy(device_dto.id, device_id_c_str, sizeof(device_dto.id) - 1);
+                    //     device_dto.id[sizeof(device_dto.id) - 1] = '\0';
+                    // }
                     std::string dNomeKey = "dNome" + std::to_string(i);
                     std::string dTipoKey = "dTipo" + std::to_string(i);
                     std::string dTempoKey = "dTempo" + std::to_string(i);
@@ -133,7 +136,11 @@ namespace SocketManager {
                         device_dto.time = std::stoi(dTempo->valuestring);
                     }
                     device_dto.status = 0;
-                    esp_err_t device_ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),fd,EventId::STO_DEVICESAVED);
+                    RequestSave requester;
+                    requester.requester=fd;
+                    requester.request_int=i;
+                    requester.resquest_type=RequestTypes::REQUEST_INT;
+                    esp_err_t device_ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
                     if (device_ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição para Device %d", i);}
                     else {ESP_LOGI(TAG, "Requisição para Device %d enfileirada com sucesso", i);}
                     vTaskDelay(pdMS_TO_TICKS(20));
@@ -151,7 +158,10 @@ namespace SocketManager {
                 config_dto.token_id[sizeof(config_dto.token_id)-1]='\0';
                 config_dto.token_password[sizeof(config_dto.token_password)-1]='\0';
                 config_dto.token_flag[sizeof(config_dto.token_flag)-1]='\0';
-                esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::CONFIG_DATA,&config_dto,sizeof(GlobalConfigDTO),fd,EventId::STO_CONFIGSAVED);
+                RequestSave requester;
+                requester.requester=fd;
+                requester.resquest_type=RequestTypes::REQUEST_NONE;
+                esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::CONFIG_DATA,&config_dto,sizeof(GlobalConfigDTO),requester,EventId::STO_CONFIGSAVED);
                 if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de CONFIG_DATA");}
                 else {ESP_LOGI(TAG, "Requisição CONFIG_DATA enfileirada com sucesso");}
                 cJSON_Delete(root);

@@ -1,0 +1,14 @@
+dependencies:
+  idf: '>=5.3'
+description: Touch Element Library
+documentation: https://espressif.github.io/idf-extra-components/latest/touch_element/index.html
+issues: https://github.com/espressif/idf-extra-components/issues
+repository: git://github.com/espressif/idf-extra-components.git
+repository_info:
+  commit_sha: 2e745362319744ef513d4c4498983e34e99c393c
+  path: touch_element
+targets:
+- esp32s2
+- esp32s3
+url: https://github.com/espressif/idf-extra-components/tree/master/touch_element
+version: 1.1.1

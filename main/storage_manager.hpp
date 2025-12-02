@@ -29,6 +29,9 @@
 #define MAX_TOKEN_FLAG_LEN               2
 #define MAX_HTML_OPTIONS_BUFFER_SIZE  8192
 #define MAX_FILE_PATH_LEN               64
+#define MAX_MQTT_CLIENT_ID_LEN          23
+#define MAX_MQTT_TOPIC_LEN              64
+#define MAX_DEVICE_ID_LEN               23
 
 struct WifiScanCache {
     char* networks_html_ptr;
@@ -133,17 +136,15 @@ struct Sensor {
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
     uint16_t time;
-    uint8_t status;
-    char x_str[MAX_ID_LEN];
     uint8_t x_int;
+    char x_str[MAX_ID_LEN];
     Sensor() {
         memset(id, 0, sizeof(id));
         memset(name, 0, sizeof(name));
         type = 0;
         time = 0;
-        status = 0;
-        memset(x_str, 0, sizeof(x_str));
         x_int = 0;
+        memset(x_str, 0, sizeof(x_str));
     }
 };
 struct SensorDTO {
@@ -151,17 +152,15 @@ struct SensorDTO {
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
     uint16_t time;
-    uint8_t status;
-    char x_str[MAX_ID_LEN];
     uint8_t x_int;
+    char x_str[MAX_ID_LEN];
     SensorDTO() {
         memset(id, 0, sizeof(id));
         memset(name, 0, sizeof(name));
         type = 0;
         time = 0;
-        status = 0;
-        memset(x_str, 0, sizeof(x_str));
         x_int = 0;
+        memset(x_str, 0, sizeof(x_str));
     }
 };
 struct Page {
@@ -186,25 +185,49 @@ struct CurrentTime {
     int minute;
     CurrentTime():dayOfWeek(0),hour(0),minute(0) {}
 };
-enum class StorageCommand {
-    SAVE,DELETE
+struct PublishBrokerData {
+    char device_id[MAX_MQTT_CLIENT_ID_LEN];
+    char payload[MAX_MQTT_TOPIC_LEN];
+    PublishBrokerData() {
+        memset(device_id, 0, sizeof(device_id));
+        memset(payload, 0, sizeof(payload));
+    }
+    PublishBrokerData(const char* id_cstr, const char* p_cstr) {
+        memset(device_id, 0, sizeof(device_id));
+        memset(payload, 0, sizeof(payload));
+        strncpy(device_id, id_cstr, sizeof(device_id) - 1);
+        strncpy(payload, p_cstr, sizeof(payload) - 1);
+        device_id[sizeof(device_id) - 1] = '\0';
+        payload[sizeof(payload) - 1] = '\0';
+    }
 };
-enum class StorageStructType {
-    CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA
+enum class StorageCommand {SAVE,DELETE};
+enum class StorageStructType {CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA};
+enum class RequestTypes {REQUEST_NONE,REQUEST_INT,REQUEST_CHAR};
+struct RequestSave {
+    int requester;
+    int request_int;
+    char request_char[MAX_ID_LEN];
+    RequestTypes resquest_type;
+    RequestSave() {
+        requester = 0;
+        request_int = 0;
+        memset(request_char, 0, sizeof(request_char));
+        resquest_type = RequestTypes::REQUEST_NONE;
+    }
 };
 struct StorageRequest {
     StorageCommand command;
     StorageStructType type;
     void* data_ptr;
     size_t data_len;
-    int client_fd;
+    RequestSave requester;
     EventId response_event_id;
     StorageRequest() {
         command = StorageCommand::SAVE;
         type = StorageStructType::CONFIG_DATA;
         data_ptr = nullptr;
         data_len = 0;
-        client_fd = -1;
         response_event_id = EventId::NONE;
     }
 };
@@ -236,7 +259,7 @@ namespace StorageManager {
     // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
     // Função para enfileirar requisições de armazenamento
-    esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,int client_fd=-1,EventId response_event_id=EventId::NONE);
+    esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,RequestSave requester,EventId response_event_id=EventId::NONE);
     // Função de inicialização
     esp_err_t init();
 }

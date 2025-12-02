@@ -215,20 +215,22 @@ namespace NetManager
                     s_scan_in_progress = false;
                     uint16_t num_networks = 0;
                     esp_wifi_scan_get_ap_num(&num_networks);
+                    const uint16_t MAX_NETWORKS_PROCESS = 50;
+                    uint16_t networks_to_process = (num_networks > MAX_NETWORKS_PROCESS) ? MAX_NETWORKS_PROCESS : num_networks;
                     char* buffer_ptr = StorageManager::scanCache->networks_html_ptr;
                     size_t buffer_capacity = MAX_HTML_OPTIONS_BUFFER_SIZE;
                     size_t current_offset = 0;
                     int written_chars = 0;
                     if (buffer_capacity > 0) {buffer_ptr[0] = '\0';}
                     wifi_ap_record_t* ap_records = nullptr;
-                    if (num_networks == 0) {
+                    if (networks_to_process == 0) {
                         ESP_LOGW(TAG, "Nenhuma rede encontrada");
                         const char* no_networks_msg = "listNet<option value=''>Nenhuma rede encontrada</option>";
                         written_chars = snprintf(buffer_ptr + current_offset, buffer_capacity - current_offset, "%s", no_networks_msg);
                         if (written_chars > 0 && (size_t)written_chars < buffer_capacity - current_offset) {current_offset += written_chars;}
                         goto cleanup_and_post;
                     }
-                    ap_records = (wifi_ap_record_t*)malloc(sizeof(wifi_ap_record_t) * num_networks);
+                    ap_records = (wifi_ap_record_t*)malloc(sizeof(wifi_ap_record_t) * networks_to_process);
                     if (!ap_records) {
                         ESP_LOGE(TAG, "Falha ao alocar memória para registros de scan.");
                         const char* error_msg = "listNet<option value=''>Erro de memória ao buscar redes</option>";
@@ -240,13 +242,13 @@ namespace NetManager
                     }
                     written_chars = snprintf(buffer_ptr + current_offset, buffer_capacity - current_offset, "listNet");
                     current_offset += written_chars;
-                    esp_wifi_scan_get_ap_records(&num_networks, ap_records);
-                    ESP_LOGI(TAG, "Scan encontrou %d redes", num_networks);
-                    char current_ssid_char[MAX_SSID_LEN];
+                    esp_wifi_scan_get_ap_records(&networks_to_process, ap_records);
+                    ESP_LOGI(TAG, "Scan encontrou %d redes processando %d redes", num_networks, networks_to_process);
+                    static char current_ssid_char[MAX_SSID_LEN];
                     strncpy(current_ssid_char,StorageManager::cd_cfg->ssid, sizeof(current_ssid_char) - 1);
                     current_ssid_char[sizeof(current_ssid_char) - 1] = '\0';
                     if (!StorageManager::isBlankOrEmpty(current_ssid_char)) {ESP_LOGI(TAG, "SSID atual configurado: %s", current_ssid_char);}
-                    for (uint16_t i = 0; i < num_networks; i++) {
+                    for (uint16_t i = 0; i < networks_to_process; i++) {
                         char ssid_temp_char[sizeof(ap_records[i].ssid)];
                         strncpy(ssid_temp_char, (char*)ap_records[i].ssid, sizeof(ssid_temp_char) - 1);
                         ssid_temp_char[sizeof(ssid_temp_char) - 1] = '\0';
@@ -296,7 +298,10 @@ namespace NetManager
                         strncpy(credential_dto.password,local_test_data.pass,sizeof(credential_dto.password)-1);
                         credential_dto.ssid[sizeof(credential_dto.ssid)-1]='\0';
                         credential_dto.password[sizeof(credential_dto.password)-1]='\0';
-                        esp_err_t ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::CREDENTIAL_DATA,&credential_dto,sizeof(CredentialConfigDTO),s_requesting_fd,EventId::STO_CREDENTIALSAVED);
+                        RequestSave requester;
+                        requester.requester=s_requesting_fd;
+                        requester.resquest_type=RequestTypes::REQUEST_NONE;
+                        esp_err_t ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::CREDENTIAL_DATA,&credential_dto,sizeof(CredentialConfigDTO),requester,EventId::STO_CREDENTIALSAVED);
                         if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de CONFIG_CREDENTIAL");}
                         else {ESP_LOGI(TAG, "Requisição CONFIG_CREDENTIAL enfileirada com sucesso");}
                     }

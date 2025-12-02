@@ -136,9 +136,8 @@ namespace Storage {
                 case 0:strncpy(sen->name, line, sizeof(sen->name) - 1);sen->name[sizeof(sen->name) - 1] = '\0';break;
                 case 1:sen->type = static_cast<uint8_t>(atoi(line));break;
                 case 2:sen->time = static_cast<uint16_t>(atoi(line));break;
-                case 3:sen->status = static_cast<uint8_t>(atoi(line));break;
+                case 3:sen->x_int = static_cast<uint8_t>(atoi(line));break;
                 case 4:strncpy(sen->x_str, line, sizeof(sen->x_str) - 1);sen->x_str[sizeof(sen->x_str) - 1] = '\0';break;
-                case 5:sen->x_int = static_cast<uint8_t>(atoi(line));break;
             }
             ++index;
         }
@@ -169,9 +168,8 @@ namespace Storage {
         fprintf(f, "%s\n", sensor->name);
         fprintf(f, "%u\n", sensor->type);
         fprintf(f, "%u\n", sensor->time);
-        fprintf(f, "%u\n", sensor->status);
-        fprintf(f, "%s\n", sensor->x_str);
         fprintf(f, "%u\n", sensor->x_int);
+        fprintf(f, "%s\n", sensor->x_str);
         fclose(f);
         ESP_LOGI(TAG, "Dispositivo '%s' salvo em %s", sensor->id, file_path);
         return ESP_OK;

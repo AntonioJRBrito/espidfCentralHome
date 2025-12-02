@@ -17,9 +17,21 @@ idf_component_register(
         "device_manager.cpp"
         "ble_manager.cpp"
         "rtc_manager.cpp"
+        # "littlefs_console.cpp"
        
     INCLUDE_DIRS
         "."
+        "../components/dns_server/include"
+        
+    REQUIRES
+        esp_common
+        nvs_flash
+        esp_wifi
+        esp_http_server
+        esp_eth
+        cjson
+        driver
+        espressif__touch_element
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE
