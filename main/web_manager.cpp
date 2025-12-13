@@ -168,6 +168,11 @@ namespace WebManager {
         httpd_resp_sendstr(req, "Encerrar command received, shutdown timer started/reset.");
         return ESP_OK;
     }
+    // handler GETINFO
+    static esp_err_t getinfo_handler(httpd_req_t *req) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not found");
+        return ESP_OK;
+    }
     // --- Handlers para HA ---
     static esp_err_t upnp_description_handler(httpd_req_t* req) {
         const Page* page = StorageManager::getPage("description.xml");
@@ -289,11 +294,12 @@ namespace WebManager {
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
         registerUriHandler("/encerrar/*",HTTP_POST,encerrar_handler);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, error_404_redirect_handler);
-        // 4. Rotas ha
+        // 4. GETINFO perdido
+        registerUriHandler("/GETINFO",HTTP_GET,getinfo_handler);
+        registerUriHandler("/GETINFO",HTTP_POST,getinfo_handler);
+        // 5. Rotas ha
         registerUriHandler("/description.xml",HTTP_GET,upnp_description_handler);
         registerUriHandler("/api",(httpd_method_t)HTTP_ANY,api_handler);
-
-        ESP_LOGI(TAG, "✓ Handler 404 registrado para redirecionar para a raiz.");
 
         //   putgetSTR="/api/"+ID+"/lights";
 
@@ -315,7 +321,7 @@ namespace WebManager {
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         // EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
-        shutdown_timer = xTimerCreate("ShutdownTimer",pdMS_TO_TICKS(5000),pdFALSE,(void*)0,init_beacon);
+        shutdown_timer = xTimerCreate("ShutdownTimer",pdMS_TO_TICKS(15000),pdFALSE,(void*)0,init_beacon);
         if(shutdown_timer==nullptr){ESP_LOGE(TAG,"Falha ao criar o timer de encerramento!");return ESP_FAIL;}
         ESP_LOGI(TAG, "Timer de encerramento criado.");
         EventBus::post(EventDomain::READY, EventId::WEB_READY);

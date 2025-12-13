@@ -22,6 +22,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "../components/dns_server/include"
+        "../components/qrcode"
         
     REQUIRES
         esp_common

@@ -304,7 +304,8 @@ namespace BrokerManager {
                                 esp_err_t sensor_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
                                 if (sensor_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Device '%s'", sensor_dto.id);}
                                 else {ESP_LOGI(TAG, "INF_HANDLER: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
-                            } else if (payload == "SNA") {
+                            } else if (payload.rfind("SNA:", 0) == 0) {
+                                //depois eu vejo o que recebe
                                 ESP_LOGI(TAG, "Payload SNA recebido de '%s'.", client_devsen_id.c_str());
                                 PublishBrokerData pub_data("123456654321","ACT:1");
                                 EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST,&pub_data,sizeof(pub_data));

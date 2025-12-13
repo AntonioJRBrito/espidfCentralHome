@@ -10,6 +10,8 @@ namespace RtcManager {
         ESP_LOGI(TAG,"Notificação de sincronização de tempo: Hora atual %s",get_current_time_str().c_str());
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSYNCED);
         s_time_synced = true;
+        CurrentTime currentTime = get_current_time_struct();
+        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
     }
     void initialize_sntp() {
         ESP_LOGI(TAG, "Inicializando SNTP");
@@ -59,10 +61,10 @@ namespace RtcManager {
         if (evt == EventId::NET_STAGOTIP) {
             initialize_sntp();
         }
-        if (evt == EventId::NET_RTCREQUEST) {
+        if (evt == EventId::NET_RTCDEVREQUEST) {
             if (s_time_synced){
                 CurrentTime currentTime = get_current_time_struct();
-                EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSUPLY,&currentTime,sizeof(CurrentTime));
+                EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
             }
             else {EventBus::post(EventDomain::NETWORK, EventId::NET_RTCNOSYNCED);}
         }

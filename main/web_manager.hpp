@@ -27,7 +27,7 @@ namespace WebManager {
     static esp_err_t redirect_to_root_handler(httpd_req_t* req);
     static esp_err_t login_auth_handler(httpd_req_t* req);
     static esp_err_t get_config_handler(httpd_req_t* req);
-    static esp_err_t encerrar_handler(httpd_req_t* req); // Já existe
+    static esp_err_t encerrar_handler(httpd_req_t* req);
     static esp_err_t upnp_description_handler(httpd_req_t* req);
     static esp_err_t api_handler(httpd_req_t* req);
     // 

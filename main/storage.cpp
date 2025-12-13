@@ -145,7 +145,7 @@ namespace Storage {
         StorageManager::registerSensor(sen);
     }
     void loadAllSensors() {
-        const char* dir_path = (std::string("/littlefs/sensor")).c_str();
+        const char* dir_path = "/littlefs/sensor";
         DIR* dir = opendir(dir_path);
         if(!dir){ESP_LOGW(TAG, "Diretório /sensor não encontrado");return;}
         struct dirent* entry;
@@ -153,6 +153,7 @@ namespace Storage {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {continue;}
             char full_path[512];
             snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+            ESP_LOGI(TAG,"nome sens:%s ",entry->d_name);
             loadSensorFile(std::string(full_path), std::string(entry->d_name));
         }
         closedir(dir);
@@ -171,7 +172,7 @@ namespace Storage {
         fprintf(f, "%u\n", sensor->x_int);
         fprintf(f, "%s\n", sensor->x_str);
         fclose(f);
-        ESP_LOGI(TAG, "Dispositivo '%s' salvo em %s", sensor->id, file_path);
+        ESP_LOGI(TAG,"Sensor '%s' salvo em %s",sensor->id,file_path);
         return ESP_OK;
     }
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg) {

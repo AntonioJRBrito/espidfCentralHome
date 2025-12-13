@@ -54,7 +54,10 @@ namespace SocketManager {
         std::lock_guard<std::mutex> lock(clients_mutex);
         auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
         if(it==ws_clients.end()){ws_clients.push_back(WebSocketClient(fd,lastAID));ESP_LOGI(TAG,"Conectado fd=%d AID=%d.",fd,lastAID);}
-    }
+        ESP_LOGI(TAG, "ws_clients count=%zu", ws_clients.size());
+        for (const auto &c : ws_clients)
+            ESP_LOGI(TAG, " client fd=%d aid=%d", c.fd, c.aid);
+        }
     // Remove cliente da lista
     static void removeClient(int fd) {
         std::lock_guard<std::mutex> lock(clients_mutex);
@@ -104,27 +107,14 @@ namespace SocketManager {
             if (root == nullptr) {ESP_LOGE(TAG, "Falha ao fazer parse do JSON CONFIG"); ret = ESP_FAIL;}
             else {
                 for (int i = 1; i <= 3; ++i) {
-                    // std::string device_id_str = std::to_string(i);
-                    // const char* device_id_c_str = device_id_str.c_str();
-                    // const Device* const_device_ptr = StorageManager::getDevice(device_id_str);
                     DeviceDTO device_dto;
                     snprintf(device_dto.id, sizeof(device_dto.id), "%d", i);
-                    // strncpy(device_dto.id, device_id_c_str, sizeof(device_dto.id) - 1);
-                    // device_dto.id[sizeof(device_dto.id) - 1] = '\0';
-                    // if (const_device_ptr) {
-                    //     memcpy(&device_dto, const_device_ptr, sizeof(DeviceDTO));
-                    //     ESP_LOGI(TAG, "Device com ID '%s' encontrado na memória. Copiando para DTO local.", device_id_c_str);
-                    // } else {
-                    //     ESP_LOGW(TAG, "Device com ID '%s' não encontrado na memória. Criando um novo DTO local.", device_id_c_str);
-                    //     strncpy(device_dto.id, device_id_c_str, sizeof(device_dto.id) - 1);
-                    //     device_dto.id[sizeof(device_dto.id) - 1] = '\0';
-                    // }
-                    std::string dNomeKey = "dNome" + std::to_string(i);
-                    std::string dTipoKey = "dTipo" + std::to_string(i);
-                    std::string dTempoKey = "dTempo" + std::to_string(i);
-                    cJSON* dNome = cJSON_GetObjectItem(root, dNomeKey.c_str());
-                    cJSON* dTipo = cJSON_GetObjectItem(root, dTipoKey.c_str());
-                    cJSON* dTempo = cJSON_GetObjectItem(root, dTempoKey.c_str());
+                    std::string dNomeKey="dNome"+std::to_string(i);
+                    std::string dTipoKey="dTipo"+std::to_string(i);
+                    std::string dTempoKey="dTempo"+std::to_string(i);
+                    cJSON* dNome=cJSON_GetObjectItem(root,dNomeKey.c_str());
+                    cJSON* dTipo=cJSON_GetObjectItem(root,dTipoKey.c_str());
+                    cJSON* dTempo=cJSON_GetObjectItem(root,dTempoKey.c_str());
                     if (dNome && dNome->valuestring) {
                         strncpy(device_dto.name, dNome->valuestring, sizeof(device_dto.name) - 1);
                         device_dto.name[sizeof(device_dto.name) - 1] = '\0';

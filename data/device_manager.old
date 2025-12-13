@@ -1,0 +1,299 @@
+
+#include "device_manager.hpp"
+
+static const char* TAG = "DeviceManager";
+
+namespace DeviceManager {
+    // display
+    #define OLED_I2C_PORT    I2C_NUM_0
+    #define OLED_I2C_SDA     GPIO_NUM_17
+    #define OLED_I2C_SCL     GPIO_NUM_18
+    #define OLED_WIDTH       128
+    #define OLED_HEIGHT      64
+    #define OLED_ADDR        0x3C
+    #define OLED_BUFFER_SIZE 1024
+    #define NUM_SCREENS      4
+    #define BATCH_MS         100
+    uint8_t* screen_buffers[NUM_SCREENS];
+    static const int DEV_XPOS[4] = {0, 9, 32, 55};
+    struct DisplayEvent {uint8_t page;};
+    static int8_t current_page = -1;
+    static esp_timer_handle_t display_timer = nullptr;
+    static const uint32_t DISPLAY_TIMEOUT_MS = 30000;
+    static QueueHandle_t draw_queue = NULL;
+    static SemaphoreHandle_t buffer_mutex = NULL;
+    static esp_timer_handle_t batch_timer = NULL;
+    static const uint8_t* HR_DIGITS[10]={HR_0,HR_1,HR_2,HR_3,HR_4,HR_5,HR_6,HR_7,HR_8,HR_9};
+    typedef struct {int command;int status;} DrawCmd;
+    // devices
+    static const gpio_num_t OUTPUT_DEV[4] = {GPIO_NUM_41,GPIO_NUM_42,GPIO_NUM_40,GPIO_NUM_39};
+    static const touch_pad_t BUTTON_DEV[4] = {TOUCH_PAD_NUM4,TOUCH_PAD_NUM5,TOUCH_PAD_NUM6,TOUCH_PAD_NUM7};
+    static esp_timer_handle_t timers[4] = {nullptr,nullptr,nullptr,nullptr};
+    static uint32_t last_press_time[4] = {0,0,0,0};
+    static const uint32_t DEBOUNCE_MS = 200;
+    static touch_button_handle_t button_handle[4];
+    static QueueHandle_t touch_queue = nullptr;
+    static QueueHandle_t storage_event_queue = nullptr;
+    static void storage_event_task(void* arg);
+    // inicializações
+    static void init_gpios(){
+        for (int i = 0; i < 4; ++i) {
+            gpio_reset_pin(OUTPUT_DEV[i]);
+            gpio_set_direction(OUTPUT_DEV[i], GPIO_MODE_OUTPUT);
+            const Device* device_ptr = StorageManager::getDevice(std::to_string(i));
+            if (device_ptr) {
+                DeviceDTO device_dto;
+                memcpy(&device_dto, device_ptr,sizeof(DeviceDTO));
+                xQueueSend(storage_event_queue,&i,0);
+            }
+        }
+        ESP_LOGI(TAG, "GPIOs de saída inicializadas");
+    }
+    static void init_touch(){
+        touch_pad_init();
+        for (int i = 0; i < 4; ++i){touch_pad_config(BUTTON_DEV[i]);}
+        touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+        touch_pad_fsm_start();
+        touch_elem_global_config_t global_config = TOUCH_ELEM_GLOBAL_DEFAULT_CONFIG();
+        ESP_ERROR_CHECK(touch_element_install(&global_config));
+        ESP_LOGI(TAG, "Touch Element instalado");
+        touch_button_global_config_t button_global_config = TOUCH_BUTTON_GLOBAL_DEFAULT_CONFIG();
+        ESP_ERROR_CHECK(touch_button_install(&button_global_config));
+        ESP_LOGI(TAG, "Touch Button instalado");
+        for (int i = 0; i < 4; ++i) {
+            touch_button_config_t button_config={.channel_num=BUTTON_DEV[i],.channel_sens=0.5F};
+            ESP_ERROR_CHECK(touch_button_create(&button_config,&button_handle[i]));
+            ESP_ERROR_CHECK(touch_button_subscribe_event(button_handle[i],TOUCH_ELEM_EVENT_ON_PRESS,(void*)i));
+            ESP_ERROR_CHECK(touch_button_set_dispatch_method(button_handle[i],TOUCH_ELEM_DISP_CALLBACK));
+            ESP_ERROR_CHECK(touch_button_set_callback(button_handle[i],touch_event_cb));
+        }
+        ESP_ERROR_CHECK(touch_element_start());
+        touch_queue = xQueueCreate(4, sizeof(uint8_t));
+        xTaskCreatePinnedToCore(touch_task, "touch_task", 4096, NULL, 4, NULL, tskNO_AFFINITY);
+        ESP_LOGI(TAG, "Touch Element inicializado");
+    }
+    static esp_err_t init_display() {
+        for(int i=0;i<NUM_SCREENS;i++){
+            screen_buffers[i]=(uint8_t*) heap_caps_malloc(OLED_BUFFER_SIZE,MALLOC_CAP_SPIRAM);memset(screen_buffers[i],0x00,OLED_BUFFER_SIZE);
+        }
+        i2c_config_t conf={I2C_MODE_MASTER,OLED_I2C_SDA,OLED_I2C_SCL,GPIO_PULLUP_ENABLE,GPIO_PULLUP_ENABLE,400000,0};
+        ESP_ERROR_CHECK(i2c_param_config(OLED_I2C_PORT, &conf));
+        ESP_ERROR_CHECK(i2c_driver_install(OLED_I2C_PORT, I2C_MODE_MASTER, 0, 0, 0));
+        for (int i=0;i<sizeof(init_cmds);i++){write_cmd(init_cmds[i]);}
+        draw_queue = xQueueCreate(32,sizeof(DrawCmd));
+        buffer_mutex = xSemaphoreCreateMutex();
+        xTaskCreatePinnedToCore(display_task,"display_task",4096,NULL,3,NULL,tskNO_AFFINITY);
+        esp_timer_create_args_t tcfg={.callback=display_timer_cb,.arg=nullptr,.dispatch_method=ESP_TIMER_TASK,.name="display_off_timer",};
+        esp_timer_create(&tcfg, &display_timer);
+        storage_event_queue = xQueueCreate(8, sizeof(RequestSave));
+        xTaskCreatePinnedToCore(storage_event_task, "storage_event_task", 4096, nullptr, 3, nullptr, tskNO_AFFINITY);
+        ESP_LOGI(TAG, "Display manager inicializado");
+        return ESP_OK;
+    }
+    // devices
+    static void handlerDev(uint8_t dev_id){
+        const Device* device_ptr = StorageManager::getDevice(std::to_string(dev_id));
+        if (device_ptr) {
+            DeviceDTO device_dto;
+            memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+            if(device_dto.type==1){device_dto.status=1-device_dto.status;}else{device_dto.status=1;}
+            ESP_LOGI(TAG, "Send to request dev[%d]",dev_id);
+            RequestSave requester;
+            requester.requester=dev_id;
+            requester.request_int=dev_id;
+            requester.resquest_type=RequestTypes::REQUEST_INT;
+            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+        }       
+    }
+    static void handlerService(){
+        DisplayEvent ev;
+        if(current_page < 0) current_page = 0;
+        else current_page++;
+        if(current_page >= NUM_SCREENS) current_page = 0;
+        ev.page = current_page;
+        xQueueSend(display_queue, &ev, 0);
+    }
+    static void touch_event_cb(touch_button_handle_t handle, touch_button_message_t *msg, void *arg){
+        if (msg->event != TOUCH_BUTTON_EVT_ON_PRESS) return;
+        int dev = (int)arg;
+        int64_t now_ms = esp_timer_get_time() / 1000;
+        if ((now_ms - last_press_time[dev]) >= (int64_t)DEBOUNCE_MS) {
+            last_press_time[dev] = now_ms;
+            uint8_t d = dev;
+            xQueueSendFromISR(touch_queue,&d,NULL);
+            ESP_LOGI(TAG, "Touch detected - device %d", dev);
+        }
+    }
+    static void touch_task(void*){
+        uint8_t dev;
+        for(;;){if(xQueueReceive(touch_queue,&dev,portMAX_DELAY)){if(dev == 0)handlerService();else handlerDev(dev);}}
+    }
+    static void timer_callback(void* arg){
+        int dev_id = *(int*)arg;
+        free(arg);
+        ESP_LOGI(TAG, "Timer concluído para device %d", dev_id);
+        const Device* device_ptr = StorageManager::getDevice(std::to_string(dev_id));
+        if(device_ptr){
+            DeviceDTO device_dto;
+            memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+            device_dto.status=0;
+            RequestSave requester;
+            requester.requester=dev_id;
+            requester.request_int=dev_id;
+            requester.resquest_type=RequestTypes::REQUEST_INT;
+            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+        }
+    }
+    // display
+    static void display_timer_cb(void*) {
+        ESP_LOGI(TAG, "Display timeout → OFF");
+        write_cmd(0xAE);
+        current_page = -1;
+    }
+    static void display_task(void*) {
+        DisplayEvent ev;
+        for (;;) {
+            if (xQueueReceive(display_queue, &ev, portMAX_DELAY) == pdTRUE) {
+                uint8_t page = ev.page;
+                if(page>=NUM_SCREENS)page=0;
+                if(xSemaphoreTake(display_mutex,portMAX_DELAY)){draw_buffer(page);xSemaphoreGive(display_mutex);}
+            }
+        }
+    }
+    void request_display(uint8_t page) {
+        if(page>=NUM_SCREENS) return;
+        bool should_request_time=false;
+        if(current_page==-1||current_page!=page){should_request_time=true;}
+        current_page = page;
+        write_cmd(0xAF);
+        DisplayEvent ev{.page=page};
+        xQueueSend(display_queue,&ev,0);
+        esp_timer_stop(display_timer);
+        esp_timer_start_once(display_timer, DISPLAY_TIMEOUT_MS * 1000ULL);
+        if(should_request_time){ESP_LOGI(TAG,"Pedir hora (NET_RTCDEVREQUEST)");EventBus::post(EventDomain::NETWORK,EventId::NET_RTCDEVREQUEST);}
+    }
+    static void draw_device(uint8_t dev_id,uint8_t stat){
+        if (dev_id<1 || dev_id>3) return;
+        const uint8_t* icon = nullptr;
+        switch (dev_id) {
+            case 1: icon=(stat==1)?DEV1_ON:DEV1_OFF;break;
+            case 2: icon=(stat==1)?DEV2_ON:DEV2_OFF;break;
+            case 3: icon=(stat==1)?DEV3_ON:DEV3_OFF;break;
+        }
+        int x=DEV_XPOS[dev_id];
+        xSemaphoreTake(display_mutex, portMAX_DELAY);
+        draw_icon(0, icon, 15, 19, x, 28);
+        DisplayEvent ev = { .page = 0 };
+        xQueueSend(display_queue, &ev, 0);
+        xSemaphoreGive(display_mutex);
+        request_display(0);
+    }
+    static void draw_sensor(uint8_t stat){
+        const uint8_t* icon = nullptr;
+        icon=(stat==1)?SEN_ON:SEN_OFF;
+        xSemaphoreTake(display_mutex, portMAX_DELAY);
+        draw_icon(0, icon, 38, 19, 81, 28);
+        DisplayEvent ev = { .page = 0 };
+        xQueueSend(display_queue, &ev, 0);
+        xSemaphoreGive(display_mutex);
+        request_display(0);
+    }
+    static void draw_time_on_screen(const CurrentTime* t) {
+        uint8_t h1 = t->hour/10;
+        uint8_t h2 = t->hour%10;
+        uint8_t m1 = t->minute/10;
+        uint8_t m2 = t->minute%10;
+        xSemaphoreTake(display_mutex, portMAX_DELAY);
+        for (int page = 0; page < NUM_SCREENS; page++) {
+            draw_icon(0, HR_DIGITS[h1],9,15,39,0);
+            draw_icon(0, HR_DIGITS[h2],9,15,51,0);
+            draw_icon(0, HR__,2,15,63,0);
+            draw_icon(0, HR_DIGITS[m1],9,15,68,0);
+            draw_icon(0, HR_DIGITS[m2],9,15,80,0);
+        }
+        xSemaphoreGive(display_mutex);
+        if(current_page>=0){DisplayEvent ev={.page=(uint8_t)current_page};xQueueSend(display_queue,&ev,0);}
+    }
+    //eventos
+    static void storage_event_task(void* arg) {
+        int dev_id;
+        for(;;){
+            if(xQueueReceive(storage_event_queue,&dev_id,portMAX_DELAY) == pdTRUE){
+                if(dev_id<4){
+                    const Device* device_ptr = StorageManager::getDevice(std::to_string(dev_id));
+                    if(device_ptr){
+                        DeviceDTO device_dto;
+                        memcpy(&device_dto,device_ptr,sizeof(DeviceDTO));
+                        if(device_dto.status==0){
+                            draw_device(dev_id,0);
+                            gpio_set_level(OUTPUT_DEV[dev_id],1);
+                            ESP_LOGI(TAG, "Device %d desligado", dev_id);
+                            if (timers[dev_id]) {
+                                esp_timer_stop(timers[dev_id]);
+                                esp_timer_delete(timers[dev_id]);
+                                timers[dev_id] = nullptr;
+                            }
+                        }else{
+                            gpio_set_level(OUTPUT_DEV[dev_id],0);
+                            draw_device(dev_id,1);
+                            ESP_LOGI(TAG, "Device %d ligado",dev_id);
+                            uint32_t timeout_ms;
+                            if(device_dto.type==2)timeout_ms=100;
+                            else if(device_dto.type==3)timeout_ms=device_dto.time*1000;
+                            else timeout_ms=0;
+                            if (timeout_ms > 0) {
+                                int *dev_id_ptr = (int*) malloc(sizeof(int));
+                                *dev_id_ptr = dev_id;
+                                esp_timer_create_args_t timer_args={.callback=timer_callback,.arg=dev_id_ptr,.dispatch_method=ESP_TIMER_TASK,.name="device_timer",.skip_unhandled_events=true};
+                                esp_timer_create(&timer_args, &timers[dev_id]);
+                                esp_timer_start_once(timers[dev_id], timeout_ms * 1000);
+                                ESP_LOGI(TAG, "Timer de %lums iniciado para device %d", timeout_ms, dev_id);
+                            }
+                        }
+                    }
+                }else{
+                    // tratar sensor
+                }
+            }
+        }
+    }
+    static void onStorageEvent(void*, esp_event_base_t, int32_t id, void* event_data){
+        if (static_cast<EventId>(id)==EventId::STO_DEVICESAVED) {
+            RequestSave requester;
+            memcpy(&requester, event_data, sizeof(RequestSave));
+            if(requester.resquest_type!=RequestTypes::REQUEST_INT){return;}
+            if((requester.request_int<1)|(requester.request_int>4)){return;}
+            xQueueSend(storage_event_queue,&requester.request_int,0);
+        }
+    }
+    static void onReadyEvent(void*, esp_event_base_t, int32_t id, void*) {
+        if (static_cast<EventId>(id)==EventId::READY_ALL) {
+            EventBus::unregHandler(EventDomain::READY, &onReadyEvent);
+            ESP_LOGI(TAG, "READY_ALL → iniciando Device");
+            init_display();
+            init_touch();
+            init_gpios();
+            // inicialização de sensor
+            // draw_sensor(0);
+            // apagar depois de implementar
+            EventBus::post(EventDomain::DEVICE, EventId::DEV_STARTED);
+            ESP_LOGI(TAG, "→ DEV_STARTED publicado");
+        }
+    }
+    static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* event_data) {
+        if (static_cast<EventId>(id) == EventId::NET_RTCDEVSUPLY) {
+            const CurrentTime* t = (const CurrentTime*) event_data;
+            ESP_LOGI(TAG, "Hora recebida: %02d:%02d", t->hour, t->minute);
+            draw_time_on_screen(t);
+        }
+    }
+    esp_err_t init(){
+        ESP_LOGI(TAG, "Pré-inicializando Device Manager...");
+        EventBus::regHandler(EventDomain::READY, &onReadyEvent, nullptr);
+        EventBus::regHandler(EventDomain::STORAGE, &onStorageEvent, nullptr);
+        EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
+        EventBus::post(EventDomain::READY, EventId::DEV_READY);
+        ESP_LOGI(TAG, "Aguardando storage estar ready.");
+        return ESP_OK;
+    }
+}
