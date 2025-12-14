@@ -42,9 +42,12 @@ namespace DeviceManager{
     typedef struct {int command;int status;CurrentTime HM;}DrawCmd;
     static esp_timer_handle_t batch_timer=nullptr;
     static const int FLUSH_CMD=5;
+    static const int MARK_CMD=6;
     static const int OFF_CMD=7;
     static const int INIT_CMD=8;
+    static const int NOP_CMD=9;
     static bool display_ready=false;
+    static CurrentTime t;
     // display handler service
     static int8_t display_page=-1;
     static const uint8_t DISPLAY_PAGE_COUNT=3;
@@ -119,6 +122,8 @@ namespace DeviceManager{
         esp_timer_create(&tcfg,&display_timer);
         DrawCmd initCmd={.command=INIT_CMD,.status=0};
         xQueueSend(draw_queue,&initCmd,0);
+        DrawCmd markCmd={.command=MARK_CMD,.status=0};
+        xQueueSend(draw_queue,&markCmd,0);
         display_ready=true;
         ESP_LOGI(TAG, "Display manager inicializado");
     }
@@ -201,8 +206,8 @@ namespace DeviceManager{
             if (temp)   heap_caps_free(temp);
             return;
         }
-        memset(qrcode, 0, qbuf_len);
-        memset(temp,   0, qbuf_len);
+        memset(qrcode,0,qbuf_len);
+        memset(temp,0,qbuf_len);
         bool ok = qrcodegen_encodeText(payload.c_str(), temp, qrcode, ecl, minVersion, maxVersion, mask, boostEcl);
         if (!ok) {
             ESP_LOGE(TAG, "qrcodegen_encodeText falhou (payload talvez muito grande)");
@@ -362,6 +367,7 @@ namespace DeviceManager{
     // devices
     static void handlerDev(uint8_t dev_id){
         const Device* device_ptr = StorageManager::getDevice(std::to_string(dev_id));
+        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
         if (device_ptr) {
             DeviceDTO device_dto;
             memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
@@ -374,6 +380,7 @@ namespace DeviceManager{
         }       
     }
     static void handlerService(){
+        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
         display_page=(int8_t)((display_page+1)%DISPLAY_PAGE_COUNT);
         ESP_LOGI(TAG,"handlerService: page %d selecionada",display_page);
         if(display_page>=0&&display_page<NUM_SCREENS){draw_buffer_send_safe((uint8_t)display_page);}
@@ -521,22 +528,25 @@ namespace DeviceManager{
             esp_timer_start_once(batch_timer, (uint64_t)BATCH_MS * 1000ULL);
         }
     }
-    static void enqueue_draw_time(const CurrentTime* t) {
-        DrawCmd d;
-        d.command=6;
-        d.status=0;
-        d.HM=*t;
-        xQueueSend(draw_queue, &d, pdMS_TO_TICKS(20));
-        if(batch_timer){
-            esp_timer_stop(batch_timer);
-            esp_timer_start_once(batch_timer, (uint64_t)BATCH_MS * 1000ULL);
-        }
-    }
     static void display_event_task(void *pv) {
         (void)pv;
         DrawCmd cmd;
         for (;;) {
             if(xQueueReceive(draw_queue,&cmd,portMAX_DELAY)!=pdTRUE){continue;}
+            uint8_t h1=t.hour/10;
+            uint8_t h2=t.hour%10;
+            uint8_t m1=t.minute/10;
+            uint8_t m2=t.minute%10;
+            if(xSemaphoreTake(buffer_mutex,pdMS_TO_TICKS(2000))==pdTRUE){
+                for(uint8_t s=0;s<NUM_SCREENS;++s){
+                    draw_icon(s,HR_DIGITS[h1],9,15,7,0);
+                    draw_icon(s,HR_DIGITS[h2],9,15,19,0);
+                    draw_icon(s,HR__,2,15,31,0);
+                    draw_icon(s,HR_DIGITS[m1],9,15,36,0);
+                    draw_icon(s,HR_DIGITS[m2],9,15,48,0);
+                }
+                xSemaphoreGive(buffer_mutex);
+            }
             switch (cmd.command) {
                 case INIT_CMD:{
                     ESP_LOGI(TAG,"display_event_task: INIT_CMD recebido");
@@ -555,11 +565,35 @@ namespace DeviceManager{
                     }
                     break;
                 }
+                case NOP_CMD:{
+                    ESP_LOGI(TAG,"display_event_task: NOP_CMD recebido");
+                    if(display_page>0){display_dirty[display_page]=true;}else{display_dirty[0]=true;}
+                    if(xSemaphoreTake(send_mutex,pdMS_TO_TICKS(2000))==pdTRUE){
+                        esp_timer_stop(batch_timer);
+                        esp_timer_start_once(batch_timer,(uint64_t)BATCH_MS*1000ULL);
+                        xSemaphoreGive(send_mutex);
+                    }
+                    break;
+                }
                 case FLUSH_CMD:{
                     ESP_LOGI(TAG,"display_event_task: FLUSH_CMD flush dirty");
                     for(int s=(int)NUM_SCREENS-1;s>=0;--s){if(display_dirty[s]){draw_buffer_send_safe(s);display_dirty[s]=false;}}
                     esp_timer_stop(display_timer);
                     esp_timer_start_once(display_timer,(uint64_t)DISPLAY_TIMEOUT_MS*1000ULL);
+                    break;
+                }
+                case MARK_CMD:{
+                    ESP_LOGI(TAG,"display_event_task: update time command");
+                    const uint8_t *bm;
+                    bm= get_char_bitmap('W');draw_icon(2,bm,9,15,76,0);
+                    bm= get_char_bitmap('I');draw_icon(2,bm,9,15,88,0);
+                    bm= get_char_bitmap('F');draw_icon(2,bm,9,15,100,0);
+                    bm= get_char_bitmap('I');draw_icon(2,bm,9,15,112,0);
+                    bm= get_char_bitmap('A');draw_icon(1,bm,9,15,100,0);
+                    bm= get_char_bitmap('P');draw_icon(1,bm,9,15,112,0);
+                    bm= get_char_bitmap('D');draw_icon(0,bm,9,15,88,0);
+                    bm= get_char_bitmap('E');draw_icon(0,bm,9,15,100,0);
+                    bm= get_char_bitmap('V');draw_icon(0,bm,9,15,112,0);
                     break;
                 }
                 case 1:case 2:case 3:{
@@ -592,38 +626,6 @@ namespace DeviceManager{
                     }
                     break;
                 }
-                case 6:{
-                    ESP_LOGI(TAG,"display_event_task: update time command");
-                    const CurrentTime *t=&cmd.HM;
-                    uint8_t h1=t->hour/10;
-                    uint8_t h2=t->hour%10;
-                    uint8_t m1=t->minute/10;
-                    uint8_t m2=t->minute%10;
-                    if(xSemaphoreTake(buffer_mutex,pdMS_TO_TICKS(2000))==pdTRUE){
-                        for(uint8_t s=0;s<NUM_SCREENS;++s){
-                            draw_icon(s,HR_DIGITS[h1],9,15,7,0);
-                            draw_icon(s,HR_DIGITS[h2],9,15,19,0);
-                            draw_icon(s,HR__,2,15,31,0);
-                            draw_icon(s,HR_DIGITS[m1],9,15,36,0);
-                            draw_icon(s,HR_DIGITS[m2],9,15,48,0);
-                        }
-                        xSemaphoreGive(buffer_mutex);
-                        display_dirty[0]=true;
-                        esp_timer_stop(batch_timer);
-                        esp_timer_start_once(batch_timer,(uint64_t)BATCH_MS*1000ULL);
-                        const uint8_t *bm;
-                        bm= get_char_bitmap('W');draw_icon(2,bm,9,15,76,0);
-                        bm= get_char_bitmap('I');draw_icon(2,bm,9,15,88,0);
-                        bm= get_char_bitmap('F');draw_icon(2,bm,9,15,100,0);
-                        bm= get_char_bitmap('I');draw_icon(2,bm,9,15,112,0);display_dirty[2]=true;
-                        bm= get_char_bitmap('A');draw_icon(1,bm,9,15,100,0);
-                        bm= get_char_bitmap('P');draw_icon(1,bm,9,15,112,0);display_dirty[1]=true;
-                        bm= get_char_bitmap('D');draw_icon(0,bm,9,15,88,0);
-                        bm= get_char_bitmap('E');draw_icon(0,bm,9,15,100,0);
-                        bm= get_char_bitmap('V');draw_icon(0,bm,9,15,112,0);display_dirty[0]=true;
-                    }
-                    break;
-                }
                 default: {
                     ESP_LOGW(TAG,"display_event_task: comando desconhecido %d status=%d",cmd.command,cmd.status);
                     break;
@@ -646,7 +648,6 @@ namespace DeviceManager{
         for(;;){
             if(xQueueReceive(storage_event_queue,&devsen_id,portMAX_DELAY)==pdTRUE){
                 if(devsen_id<4){
-                    EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
                     const Device* device_ptr=StorageManager::getDevice(std::to_string(devsen_id));
                     if(device_ptr){
                         DeviceDTO device_dto;
@@ -676,7 +677,6 @@ namespace DeviceManager{
                         }
                     }
                 }else if(devsen_id==4){
-                    EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
                     const Sensor* sensor_ptr=StorageManager::getSensor(std::to_string(devsen_id));
                     if(sensor_ptr){
                         SensorDTO sensor_dto;
@@ -691,6 +691,7 @@ namespace DeviceManager{
         if(!event_data)return;
         EventId ev=static_cast<EventId>(id);
         if(ev==EventId::STO_DEVICESAVED||ev==EventId::STO_SENSORSAVED){
+            EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
             RequestSave requester;
             memcpy(&requester,event_data,sizeof(RequestSave));
             if(requester.resquest_type!=RequestTypes::REQUEST_INT)return;
@@ -713,9 +714,10 @@ namespace DeviceManager{
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* event_data) {
         if (static_cast<EventId>(id) == EventId::NET_RTCDEVSUPLY) {
-            const CurrentTime* t = (const CurrentTime*) event_data;
-            ESP_LOGI(TAG, "Hora recebida: %02d:%02d", t->hour, t->minute);
-            enqueue_draw_time(t);
+            t=*reinterpret_cast<CurrentTime*>(event_data);
+            DrawCmd d={.command=NOP_CMD,.status=0};
+            xQueueSend(draw_queue,&d,pdMS_TO_TICKS(20));
+            ESP_LOGI(TAG, "Hora recebida: %02d:%02d", t.hour, t.minute);
         }else if (static_cast<EventId>(id) == EventId::NET_STAGOTIP) {
             ESP_LOGI(TAG, "Event NET_STAGOTIP recebido → montar QR com IP na screen 2");
             generate_and_draw_wifi_qr_to_screen_n(2);

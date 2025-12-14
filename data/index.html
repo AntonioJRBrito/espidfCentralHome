@@ -38,8 +38,8 @@
         document.getElementById('dTipo3').addEventListener("change",showTime3);
         document.getElementById('authInterno').addEventListener('change',updateAuthMode);
         document.getElementById('authCustom').addEventListener('change',updateAuthMode);
-        window.addEventListener("unload",getExit);
-        document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){getExit();}});
+        // window.addEventListener("unload",getExit);
+        // document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){getExit();}});
         socket.addEventListener('open',function(event){socket.send("NET");timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
         // funções
         function updateAuthMode(){
@@ -53,13 +53,13 @@
           if(mail)mail.required=!interno;
         }
         function exit(){
-          getExit();
+          // getExit();
           showDiv('divAguarde');
           window.close(); 
         }
-        function getExit(){
-          navigator.sendBeacon("/encerrar/"+fileDescriptor);
-        }
+        // function getExit(){
+        //   navigator.sendBeacon("/encerrar/"+fileDescriptor);
+        // }
         function getCancel(){
           event.preventDefault();
           window.location.href=`index.html`;
@@ -152,6 +152,9 @@
             if(event.data.startsWith("fd")){
               const msg=event.data.substring(2);
               fileDescriptor=msg;
+            }
+            if(event.data.startsWith("keep")){
+              socket.send("live");
             }
             if(event.data.startsWith("listInfo")){
               clearTimeout(timeoutId);

@@ -8,28 +8,6 @@ namespace WebManager {
     static int uri_count = 0;
     static int fd_onclosed = 0;
     static uint32_t gerarTokenNumerico() {return 10000000 + (esp_random() % 90000000);}
-    static TimerHandle_t shutdown_timer = nullptr;
-    // funções de beacon
-    void init_beacon(TimerHandle_t xTimer) {
-        ESP_LOGW(TAG, "Timer de encerramento expirou (inatividade)! Postando evento de desligamento.");
-        EventBus::post(EventDomain::WEB, EventId::WEB_STOPCLIENT,&fd_onclosed,sizeof(int));
-    }
-    void startShutdownTimer() {
-        if (shutdown_timer != nullptr) {
-            if (xTimerReset(shutdown_timer, 0) != pdPASS) {ESP_LOGE(TAG, "Falha ao iniciar/resetar o timer de encerramento!");}
-            else {ESP_LOGI(TAG, "Timer de encerramento iniciado/resetado.");}
-        } else {
-            ESP_LOGE(TAG, "Tentativa de iniciar timer de encerramento não inicializado!");
-        }
-    }
-    void stopShutdownTimer() {
-        if (shutdown_timer != nullptr) {
-            if (xTimerStop(shutdown_timer, 0) != pdPASS) {ESP_LOGE(TAG, "Falha ao parar o timer de encerramento!");}
-            else {ESP_LOGI(TAG, "Timer de encerramento parado.");}
-        } else {
-            ESP_LOGE(TAG, "Tentativa de parar timer de encerramento não inicializado!");
-        }
-    }
     // Função para decodificar strings URL-encoded
     std::string url_decode(const std::string& encoded_string) {
         std::string decoded_string;
@@ -87,12 +65,10 @@ namespace WebManager {
         httpd_resp_set_hdr(req, "Connection", "close");
         httpd_resp_send(req, (const char*)page->data, page->size);
         ESP_LOGI(TAG, "Servido (PSRAM): %s (%zu bytes)", uri.c_str(), page->size);
-        stopShutdownTimer();
         return ESP_OK;
     }
     static esp_err_t error_404_redirect_handler(httpd_req_t* req, httpd_err_code_t error) {
         ESP_LOGW(TAG, "Erro HTTP %d na URI: %s. Redirecionando para a raiz.", error, req->uri);
-        stopShutdownTimer();
         return redirect_to_root_handler(req);
     }
     // --- Handler para redirecionamento de captive portal ---
@@ -101,7 +77,6 @@ namespace WebManager {
         httpd_resp_set_status(req, "302 Found");
         httpd_resp_set_hdr(req, "Location", "/");
         httpd_resp_send(req, NULL, 0);
-        stopShutdownTimer();
         return ESP_OK;
     }
     static esp_err_t login_auth_handler(httpd_req_t* req) {
@@ -163,7 +138,6 @@ namespace WebManager {
         std::string fd_str = uri_str.substr(last_slash_pos + 1);
         fd_onclosed = 0;
         if(std::sscanf(fd_str.c_str(),"%d",&fd_onclosed)!=1){ESP_LOGW(TAG,"FD inválido na URI: '%s'. Usando FD 0.",fd_str.c_str());}
-        startShutdownTimer();
         ESP_LOGI(TAG, "Encerrar command received, timer started para %d.",fd_onclosed);
         httpd_resp_sendstr(req, "Encerrar command received, shutdown timer started/reset.");
         return ESP_OK;
@@ -321,8 +295,6 @@ namespace WebManager {
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         // EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
-        shutdown_timer = xTimerCreate("ShutdownTimer",pdMS_TO_TICKS(15000),pdFALSE,(void*)0,init_beacon);
-        if(shutdown_timer==nullptr){ESP_LOGE(TAG,"Falha ao criar o timer de encerramento!");return ESP_FAIL;}
         ESP_LOGI(TAG, "Timer de encerramento criado.");
         EventBus::post(EventDomain::READY, EventId::WEB_READY);
         ESP_LOGI(TAG, "→ WEB_READY publicado; aguardando NET_IFOK");

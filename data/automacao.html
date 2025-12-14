@@ -101,6 +101,9 @@
         }
         socket.onmessage=function(event){
           try{
+            if(event.data.startsWith("keep")){
+              socket.send("live");
+            }
             if(event.data.startsWith("sendAutoma")){
               const automa=JSON.parse(event.data.substring(10));
               for(const sensorId in automa){
@@ -113,14 +116,12 @@
               }
               painel.innerHTML='';
               for (const sensorId in automa){genAutoma(sensorId,automa[sensorId]);}
-            }else{
-              const obj=JSON.parse(event.data);
-              const tipoMsg=obj[0][0];
-              if(tipoMsg==="sendDisp"){
-                atuadores={};
-                for(let i=1;i<obj.length;i++){
-                  atuadores[obj[i][0]]=obj[i][1];
-                }
+            }
+            if(event.data.startsWith("sendDisp")){
+              const obj=JSON.parse(event.data.substring(8));
+              atuadores={};
+              for(let i=1;i<obj.length;i++){
+                atuadores[obj[i][0]]=obj[i][1];
               }
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}

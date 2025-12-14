@@ -16,9 +16,6 @@
 #include <stdexcept>
 
 namespace WebManager {
-    // timer de encerramento
-    void startShutdownTimer();
-    void stopShutdownTimer();
     // init do web_manager
     esp_err_t init();
     // handlers HTTP

@@ -108,6 +108,9 @@
               const newBtn=genDisp({id,nome,tipo,status,tempo});
               if(existBtn){painel.replaceChild(newBtn,existBtn);}else{painel.appendChild(newBtn);}
             }
+            if(event.data.startsWith("keep")){
+              socket.send("live");
+            }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };
         // inicialização

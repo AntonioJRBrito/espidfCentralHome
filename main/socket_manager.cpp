@@ -43,32 +43,11 @@ namespace SocketManager {
         const char* json_string = cJSON_PrintUnformatted(root);
         if(!json_string){ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");cJSON_Delete(root);return;}
         std::string full_message = "listInfo" + std::string(json_string);
-        esp_err_t ret = sendToClient(fd, full_message.c_str());
+        esp_err_t ret = sendToClient(fd,full_message.c_str());
         if(ret != ESP_OK){ESP_LOGE(TAG,"Falha ao servir listInfo");}
         else{ESP_LOGI(TAG, "Servido listInfo");}
         cJSON_Delete(root);
         free((void*)json_string);
-    }
-    // Adiciona cliente à lista
-    static void addClient(int fd) {
-        std::lock_guard<std::mutex> lock(clients_mutex);
-        auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
-        if(it==ws_clients.end()){ws_clients.push_back(WebSocketClient(fd,lastAID));ESP_LOGI(TAG,"Conectado fd=%d AID=%d.",fd,lastAID);}
-        ESP_LOGI(TAG, "ws_clients count=%zu", ws_clients.size());
-        for (const auto &c : ws_clients)
-            ESP_LOGI(TAG, " client fd=%d aid=%d", c.fd, c.aid);
-        }
-    // Remove cliente da lista
-    static void removeClient(int fd) {
-        std::lock_guard<std::mutex> lock(clients_mutex);
-        auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
-        if(it!=ws_clients.end()){
-            WebSocketClient& client = *it;
-            esp_wifi_deauth_sta(client.aid);
-            EventBus::post(EventDomain::NETWORK, EventId::NET_SUSPCLIENT,&client.aid,sizeof(client.aid));
-            ws_clients.erase(it);
-            ESP_LOGI(TAG,"WS desconectado (fd=%d). Total: %zu",fd,ws_clients.size());
-        }
     }
     // Handler do WebSocket
     static esp_err_t ws_handler(httpd_req_t* req) {
@@ -89,7 +68,6 @@ namespace SocketManager {
         std::string message((char*)buf);
         ESP_LOGI(TAG, "Mensagem WebSocket recebida: %s", message.c_str());
         int fd = httpd_req_to_sockfd(req);
-        addClient(fd);
         if (message == "NET") {
             ESP_LOGI(TAG, "Comando NET recebido, solicitando lista WiFi para fd=%d", fd);
             EventBus::post(EventDomain::NETWORK, EventId::NET_LISTQRY, &fd, sizeof(int));
@@ -188,7 +166,6 @@ namespace SocketManager {
         esp_err_t ret = httpd_ws_send_frame_async(ws_server, fd, &ws_pkt);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Falha ao enviar para fd=%d: %s", fd, esp_err_to_name(ret));
-            removeClient(fd);
         }
         return ret;
     }
@@ -266,12 +243,6 @@ namespace SocketManager {
             httpd_handle_t* server_ptr = (httpd_handle_t*)data;
             if (server_ptr && *server_ptr) {start(*server_ptr);}
             else {ESP_LOGE(TAG, "HTTP server inválido no evento WEB_STARTED");}
-        }
-        if (evt == EventId::WEB_STOPCLIENT) {
-            ESP_LOGI(TAG, "WEB_STOPCLIENT recebido, removendo cliente...");
-            int client_fd = -1;
-            if(data){memcpy(&client_fd,data,sizeof(int));}
-            removeClient(client_fd);
         }
     }
     static void onStorageEvent(void*, esp_event_base_t, int32_t id, void* data) {
