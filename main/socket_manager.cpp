@@ -9,7 +9,16 @@ namespace SocketManager {
     static httpd_handle_t ws_server = nullptr;
     static bool ws_registered = false;
     static httpd_uri_t ws_uri;
-    static uint32_t lastAID;
+    // controle de FDs abertos
+    #define SUSPEND_AP 20
+    static esp_timer_handle_t ap_suspend_timer = nullptr;
+    static wifi_mode_t saved_wifi_mode = WIFI_MODE_NULL;
+    static std::mutex ap_suspend_mutex;
+    static const int64_t KEEP_INTERVAL_MS = 15*1000;
+    static const TickType_t KILL_TASK_DELAY_TICKS = pdMS_TO_TICKS(40);
+    static esp_timer_handle_t keep_timer = nullptr;
+    static std::set<int> pending_keep_fds;
+    static std::mutex pending_mutex;
     static void info(int fd){
         cJSON* root = cJSON_CreateObject();
         if(!root){ESP_LOGE(TAG, "Falha ao criar objeto cJSON");return;}
@@ -49,26 +58,282 @@ namespace SocketManager {
         cJSON_Delete(root);
         free((void*)json_string);
     }
+    // inclusão e remoção de FDs, tratamento de AP
+    static int log_ap_associated_clients() {
+        wifi_sta_list_t sta_list;
+        memset(&sta_list, 0, sizeof(sta_list));
+        esp_err_t r = esp_wifi_ap_get_sta_list(&sta_list);
+        if (r != ESP_OK) {
+            ESP_LOGW(TAG, "esp_wifi_ap_get_sta_list falhou: %s", esp_err_to_name(r));
+            return -1;
+        }
+        ESP_LOGI(TAG, "AP associados: %u", sta_list.num);
+        for (unsigned i = 0; i < sta_list.num; ++i) {
+            const wifi_sta_info_t &info = sta_list.sta[i];
+            ESP_LOGI(TAG,"idx=%u mac=%02X:%02X:%02X:%02X:%02X:%02X rssi=%d",
+                    i,
+                    info.mac[0], info.mac[1], info.mac[2],
+                    info.mac[3], info.mac[4], info.mac[5],
+                    info.rssi);
+        }
+        return (int)sta_list.num;
+    }
+    static void addClientIfNeeded(int fd, uint32_t aid = 0) {
+        std::lock_guard<std::mutex> lk(clients_mutex);
+        auto it = std::find_if(ws_clients.begin(), ws_clients.end(),
+            [fd](const WebSocketClient &c){ return c.fd == fd; });
+        if (it == ws_clients.end()) {
+            ws_clients.emplace_back(fd, aid);
+            ESP_LOGI(TAG, "addClientIfNeeded: fd=%d adicionado em ws_clients", fd);
+        } else {
+            ESP_LOGI(TAG, "addClientIfNeeded: fd=%d já presente", fd);
+            // opcional: atualizar aid se necessário
+            if (aid != 0 && it->aid != aid) {
+                it->aid = aid;
+                ESP_LOGI(TAG, "addClientIfNeeded: aid atualizado para fd=%d -> aid=%u", fd, aid);
+            }
+        }
+    }
+    static void kill_client_task(void* arg){
+        KillTaskArg* a=static_cast<KillTaskArg*>(arg);
+        if(!a){vTaskDelete(NULL);return;}
+        vTaskDelay(KILL_TASK_DELAY_TICKS);
+        int fd = a->fd;
+        free(a);
+        ESP_LOGW(TAG, "kill_client_task: fechando fd=%d", fd);
+        removeClientByFd(fd);
+        vTaskDelete(NULL);
+    }
+    static void removeClientByFd(int fd){
+        {
+            std::lock_guard<std::mutex> lk(clients_mutex);
+            auto it = std::find_if(ws_clients.begin(), ws_clients.end(),
+                [fd](const WebSocketClient &c){ return c.fd == fd; });
+            if (it != ws_clients.end()) {
+                bool was_from_ap = it->from_ap;
+                ::shutdown(fd,SHUT_RDWR);
+                ::close(fd);
+                ws_clients.erase(it);
+                ESP_LOGI(TAG, "removeClientByFd: cliente fd=%d removido da lista", fd);
+                if (was_from_ap) {
+                    ESP_LOGI(TAG, "removeClientByFd: cliente era do AP -> suspendendo AP por 20s");
+                    suspend_ap_for_seconds(SUSPEND_AP);
+                }
+                return;
+            }
+        }
+        ::shutdown(fd,SHUT_RDWR);
+        ::close(fd);
+        ESP_LOGI(TAG, "removeClientByFd: fd=%d fechado (não estava na lista)", fd);
+    }
+    void handle_ws_alive(int fd){
+        std::lock_guard<std::mutex> lk(pending_mutex);
+        auto it = pending_keep_fds.find(fd);
+        if (it != pending_keep_fds.end()) {
+            pending_keep_fds.erase(it);
+            // ESP_LOGI(TAG, "handle_ws_alive: fd=%d respondeu alive -> removido do pending", fd);
+        } else {
+            // ESP_LOGD(TAG, "handle_ws_alive: fd=%d recebeu alive mas não estava pendente", fd);
+        }
+    }
+    static void keep_timer_cb(void* arg) {
+        (void)arg;
+        // ESP_LOGI(TAG, "keep_timer_cb: disparado (time=%lld)", (long long)esp_timer_get_time());
+        std::vector<int> to_kill;
+        {
+            std::lock_guard<std::mutex> lk(pending_mutex);
+            for (int fd : pending_keep_fds) to_kill.push_back(fd);
+            pending_keep_fds.clear();
+        }
+        for (int fd : to_kill) {
+            KillTaskArg* a = (KillTaskArg*) malloc(sizeof(KillTaskArg));
+            if (!a) {
+                ESP_LOGE(TAG, "keep_timer_cb: falha malloc para kill task fd=%d; fechando direto", fd);
+                removeClientByFd(fd);
+                continue;
+            }
+            a->fd = fd;
+            BaseType_t rc = xTaskCreate(kill_client_task, "kill_client", 2048/sizeof(StackType_t), a, tskIDLE_PRIORITY+1, NULL);
+            if (rc != pdPASS) {
+                ESP_LOGE(TAG, "keep_timer_cb: falha ao criar kill task para fd=%d; fechando direto", fd);
+                free(a);
+                removeClientByFd(fd);
+            } else {
+                ESP_LOGI(TAG, "keep_timer_cb: kill task criada para fd=%d", fd);
+            }
+        }
+        std::vector<int> current_fds;
+        {
+            std::lock_guard<std::mutex> lk(clients_mutex);
+            for (const auto &c : ws_clients) {
+                current_fds.push_back(c.fd);
+            }
+        }
+        for (int fd : current_fds) {
+            bool ok = (sendToClient(fd, "keep") == ESP_OK);
+            // ESP_LOGI(TAG, "keep_timer_cb: keep enviado para fd=%d",fd);
+            if (!ok) {
+                ESP_LOGW(TAG, "keep_timer_cb: falha ao enviar keep para fd=%d -> fechar imediatamente", fd);
+                removeClientByFd(fd);
+                continue;
+            }
+            {
+                std::lock_guard<std::mutex> lk(pending_mutex);
+                pending_keep_fds.insert(fd);
+            }
+            // ESP_LOGI(TAG, "keep_timer_cb: keep enviado para fd=%d (agendado como pendente)", fd);
+        }
+    }
+    void start_keep_timer() {
+        if (keep_timer) return;
+        const esp_timer_create_args_t targs = {
+            .callback = &keep_timer_cb,
+            .arg = NULL,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "keepalive"
+        };
+        if (esp_timer_create(&targs, &keep_timer) != ESP_OK) {
+            ESP_LOGE(TAG, "start_keep_timer: esp_timer_create falhou");
+            keep_timer = nullptr;
+            return;
+        }
+        if (esp_timer_start_periodic(keep_timer, (uint64_t)KEEP_INTERVAL_MS * 1000ULL) != ESP_OK) {
+            ESP_LOGE(TAG, "start_keep_timer: esp_timer_start_periodic falhou");
+            esp_timer_delete(keep_timer);
+            keep_timer = nullptr;
+            return;
+        }
+        ESP_LOGI(TAG, "start_keep_timer: iniciado, intervalo %d ms", (int)KEEP_INTERVAL_MS);
+    }
+    void stop_keep_timer() {
+        if (!keep_timer) return;
+        esp_timer_stop(keep_timer);
+        esp_timer_delete(keep_timer);
+        keep_timer = nullptr;
+        ESP_LOGI(TAG, "stop_keep_timer: timer parado");
+    }
+    static void set_client_from_ap(int fd, bool from_ap){
+        std::lock_guard<std::mutex> lk(clients_mutex);
+        auto it = std::find_if(ws_clients.begin(), ws_clients.end(),
+            [fd](const WebSocketClient &c){ return c.fd == fd; });
+        if (it != ws_clients.end()) {
+            it->from_ap = from_ap;
+            ESP_LOGI(TAG, "set_client_from_ap: fd=%d marcado from_ap=%d", fd, from_ap ? 1 : 0);
+        } else {
+            ESP_LOGD(TAG, "set_client_from_ap: fd=%d nao encontrado na lista", fd);
+        }
+    }
+    static void ap_suspend_resume_cb(void* arg){
+        (void)arg;
+        ESP_LOGI(TAG, "ap_suspend_resume_cb: restaurando modo WiFi para %d", static_cast<int>(saved_wifi_mode));
+        if (esp_wifi_set_mode(saved_wifi_mode) != ESP_OK) {
+            ESP_LOGW(TAG, "ap_suspend_resume_cb: falha ao restaurar modo WiFi");
+        } else {
+            ESP_LOGI(TAG, "ap_suspend_resume_cb: WiFi mode restaurado");
+        }
+        if (ap_suspend_timer) {
+            esp_timer_delete(ap_suspend_timer);
+            ap_suspend_timer = nullptr;
+        }
+    }
+    static void suspend_ap_for_seconds(uint32_t seconds){
+        std::lock_guard<std::mutex> lk(ap_suspend_mutex);
+        wifi_mode_t cur_mode = WIFI_MODE_NULL;
+        if (esp_wifi_get_mode(&cur_mode) != ESP_OK) {
+            ESP_LOGW(TAG, "suspend_ap_for_seconds: esp_wifi_get_mode falhou");
+            return;
+        }
+        if (!(cur_mode == WIFI_MODE_AP || cur_mode == WIFI_MODE_APSTA)) {
+            ESP_LOGI(TAG, "suspend_ap_for_seconds: AP nao estava ativo (mode=%d), nada a fazer", static_cast<int>(cur_mode));
+            return;
+        }
+        saved_wifi_mode = cur_mode;
+        wifi_mode_t new_mode;
+        if (cur_mode == WIFI_MODE_APSTA) {
+            new_mode = WIFI_MODE_STA;
+        } else {
+            new_mode = WIFI_MODE_NULL;
+        }
+        ESP_LOGI(TAG, "suspend_ap_for_seconds: suspendendo AP por %u s (mode %d -> %d)", seconds, static_cast<int>(cur_mode), static_cast<int>(new_mode));
+        if (esp_wifi_set_mode(new_mode) != ESP_OK) {
+            ESP_LOGW(TAG, "suspend_ap_for_seconds: falha ao set_mode para %d", static_cast<int>(new_mode));
+            return;
+        }
+        if (ap_suspend_timer) {
+            esp_timer_stop(ap_suspend_timer);
+            esp_timer_delete(ap_suspend_timer);
+            ap_suspend_timer = nullptr;
+        }
+        esp_timer_create_args_t targs = {
+            .callback = &ap_suspend_resume_cb,
+            .arg = nullptr,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "ap_resume"
+        };
+        if (esp_timer_create(&targs, &ap_suspend_timer) != ESP_OK) {
+            ESP_LOGW(TAG, "suspend_ap_for_seconds: falha ao criar timer de resume");
+            ap_suspend_timer = nullptr;
+            return;
+        }
+        uint64_t us = (uint64_t)seconds * 1000000ULL;
+        if (esp_timer_start_once(ap_suspend_timer, us) != ESP_OK) {
+            ESP_LOGW(TAG, "suspend_ap_for_seconds: falha ao iniciar timer de resume");
+            esp_timer_delete(ap_suspend_timer);
+            ap_suspend_timer = nullptr;
+            return;
+        }
+        ESP_LOGI(TAG, "suspend_ap_for_seconds: timer iniciado por %u s", seconds);
+    }
     // Handler do WebSocket
     static esp_err_t ws_handler(httpd_req_t* req) {
-        if(req->method==HTTP_GET){ESP_LOGI(TAG,"Handshake WebSocket recebido");return ESP_OK;}
+        if (req->method == HTTP_GET) {
+            int fd = httpd_req_to_sockfd(req);
+            // ESP_LOGI(TAG, "Handshake WebSocket recebido (fd=%d)", fd);
+            addClientIfNeeded(fd);
+            size_t client_count = 0;
+            {
+                std::lock_guard<std::mutex> lk(clients_mutex);
+                client_count = ws_clients.size();
+            }
+            int ap_count = log_ap_associated_clients();
+            ESP_LOGI(TAG, "Handshake WebSocket recebido (fd=%d) — ws_clients=%zu, ap_assoc=%d",fd, client_count, ap_count);
+            return ESP_OK;
+        }
         httpd_ws_frame_t ws_pkt;
         memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
         ws_pkt.type = HTTPD_WS_TYPE_TEXT;
         esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
-        if(ret!=ESP_OK){ESP_LOGE(TAG,"Erro de tamanho do frame: %s",esp_err_to_name(ret));return ret;}
-        ESP_LOGI(TAG,"Frame recebido: len=%d, type=%d", ws_pkt.len, ws_pkt.type);
+        if (ret != ESP_OK) {
+            int fd = httpd_req_to_sockfd(req);
+            ESP_LOGE(TAG, "Erro de tamanho do frame para fd=%d: %s. Removendo cliente.", fd, esp_err_to_name(ret));
+            removeClientByFd(fd);
+            return ret;
+        }
+        // ESP_LOGI(TAG,"Frame recebido: len=%d, type=%d", ws_pkt.len, ws_pkt.type);
         if(ws_pkt.len==0){return ESP_OK;}
         uint8_t* buf = (uint8_t*)calloc(1, ws_pkt.len + 1);
         if(!buf){ESP_LOGE(TAG,"Falha ao alocar memória para payload");return ESP_ERR_NO_MEM;}
         ws_pkt.payload = buf;
         ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
-        if(ret!=ESP_OK){ESP_LOGE(TAG,"Erro ao receber payload: %s",esp_err_to_name(ret));free(buf);return ret;}
+        if (ret != ESP_OK) {
+            int fd = httpd_req_to_sockfd(req);
+            ESP_LOGE(TAG, "Erro ao receber payload para fd=%d: %s. Removendo cliente.", fd, esp_err_to_name(ret));
+            free(buf);
+            removeClientByFd(fd);
+            return ret;
+        }
         buf[ws_pkt.len] = '\0';
         std::string message((char*)buf);
-        ESP_LOGI(TAG, "Mensagem WebSocket recebida: %s", message.c_str());
+        // ESP_LOGI(TAG, "Mensagem WebSocket recebida: %s", message.c_str());
         int fd = httpd_req_to_sockfd(req);
-        if (message == "NET") {
+        if (strncmp(message.c_str(),"HOST:",5) == 0) {
+            const char* ipH=message.c_str()+5;
+            if(!ipH){ESP_LOGI(TAG,"Sem ipH");}
+            else{
+                if(strcmp(ipH,StorageManager::id_cfg->ip)==0){ESP_LOGI(TAG,"ip: %s",message.c_str());
+                }else{set_client_from_ap(fd,true);sendToClient(fd,"navegAP");}
+            }
+        }else if (message == "NET") {
             ESP_LOGI(TAG, "Comando NET recebido, solicitando lista WiFi para fd=%d", fd);
             EventBus::post(EventDomain::NETWORK, EventId::NET_LISTQRY, &fd, sizeof(int));
             std::string response_msg = "fd" + std::to_string(fd);
@@ -151,6 +416,10 @@ namespace SocketManager {
                 cJSON_Delete(root);
             }
         }
+        else if (strncmp(message.c_str(),"alive",5) == 0) {
+            handle_ws_alive(fd);
+            // ESP_LOGI(TAG, "Comando alive recebido de fd=%d", fd);
+        }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
         return ret;
@@ -198,10 +467,6 @@ namespace SocketManager {
             const char* message = "errorTry";
             sendToClient(data_rec,message);
         }
-        else if (evt == EventId::NET_APCLICONNECTED) {
-            ESP_LOGI(TAG, "Ultima conexão AID=%d", data_rec);
-            lastAID = (uint32_t)data_rec;
-        }
         else {ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);}
     }
     // Inicia o WebSocket (chamado após o HTTP server estar rodando)
@@ -220,14 +485,14 @@ namespace SocketManager {
         esp_err_t ret = httpd_register_uri_handler(server, &ws_uri);
         if (ret == ESP_OK) {
             ws_registered = true;
+            start_keep_timer();
             ESP_LOGI(TAG, "✓ WebSocket registrado com sucesso");
-            // EventBus::post(EventDomain::SOCKET, EventId::SOC_STARTED);
-            // ESP_LOGI(TAG, "→ SOC_STARTED publicado");
         } else {ESP_LOGE(TAG, "Falha ao registrar WebSocket handler");}
         return ret;
     }
     // Parar o WebSocket
     esp_err_t stop() {
+        stop_keep_timer();
         std::lock_guard<std::mutex> lock(clients_mutex);
         ws_clients.clear();
         ws_server = nullptr;
@@ -236,7 +501,7 @@ namespace SocketManager {
         return ESP_OK;
     }
     static void onWebEvent(void*, esp_event_base_t, int32_t id, void* data) {
-        ESP_LOGI(TAG, "→ onWebEvent chamado: id=%d", (int)id);
+        // ESP_LOGI(TAG, "→ onWebEvent chamado: id=%d", (int)id);
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::WEB_STARTED) {
             ESP_LOGI(TAG, "WEB_STARTED recebido, iniciando WebSocket...");
@@ -246,11 +511,11 @@ namespace SocketManager {
         }
     }
     static void onStorageEvent(void*, esp_event_base_t, int32_t id, void* data) {
-        ESP_LOGI(TAG, "→ onStorageEvent chamado: id=%d", (int)id);
+        // ESP_LOGI(TAG, "→ onStorageEvent chamado: id=%d", (int)id);
         int client_fd = -1;
         EventId evt = static_cast<EventId>(id);
         if(data){memcpy(&client_fd,data,sizeof(int));}
-        ESP_LOGI(TAG,"STO_EVENT: fd=%d, evt=%d",client_fd,(int)evt);
+        // ESP_LOGI(TAG,"STO_EVENT: fd=%d, evt=%d",client_fd,(int)evt);
         esp_err_t ret = ESP_OK;
         const char* response;
         if (evt == EventId::STO_CONFIGSAVED) {response = "configOk";}

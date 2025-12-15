@@ -102,7 +102,7 @@
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("keep")){
-              socket.send("live");
+              socket.send("alive");
             }
             if(event.data.startsWith("sendAutoma")){
               const automa=JSON.parse(event.data.substring(10));

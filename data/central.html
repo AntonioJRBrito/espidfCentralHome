@@ -109,7 +109,7 @@
               if(existBtn){painel.replaceChild(newBtn,existBtn);}else{painel.appendChild(newBtn);}
             }
             if(event.data.startsWith("keep")){
-              socket.send("live");
+              socket.send("alive");
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };

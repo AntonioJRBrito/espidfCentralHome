@@ -21,6 +21,7 @@
         let fileDescriptor;
         const socket=new WebSocket(`ws://${location.host}/ws`);
         const labelwifi=document.getElementById('labelNomewifi');
+        const host="HOST:"+window.location.hostname;
         // comportamentos
         document.getElementById('imgLogin').addEventListener('click',showPass);
         document.getElementById('imgSenha').addEventListener('click',showPass);
@@ -40,7 +41,7 @@
         document.getElementById('authCustom').addEventListener('change',updateAuthMode);
         // window.addEventListener("unload",getExit);
         // document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){getExit();}});
-        socket.addEventListener('open',function(event){socket.send("NET");timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
+        socket.addEventListener('open',function(event){socket.send(host);socket.send("NET");timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
         // funções
         function updateAuthMode(){
           const interno=document.getElementById('authInterno').checked;
@@ -154,7 +155,15 @@
               fileDescriptor=msg;
             }
             if(event.data.startsWith("keep")){
-              socket.send("live");
+              socket.send("alive");
+            }
+            if(event.data.startsWith("navegAP")){
+              const btCentral=document.getElementById("btnCentral");
+              btCentral.disabled=true;
+              btCentral.classList.add('btn-custom-disabled');
+              btCentral.classList.remove('btn-custom');
+              btCentral.setAttribute('tabindex','-1');
+             document.getElementById("iconCentral").innerHTML=icons["grid2"];
             }
             if(event.data.startsWith("listInfo")){
               clearTimeout(timeoutId);

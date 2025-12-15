@@ -138,7 +138,7 @@
             const obj=JSON.parse(event.data);
             const tipoMsg=obj[0][0];
             if(event.data.startsWith("keep")){
-              socket.send("live");
+              socket.send("alive");
             }
             if(tipoMsg==="list"){
               painel.innerHTML="";

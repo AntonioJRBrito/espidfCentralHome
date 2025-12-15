@@ -58,7 +58,7 @@
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("keep")){
-              socket.send("live");
+              socket.send("alive");
             }else if(event.data.startsWith("firmware")){
               painel.innerHTML='';
               painel.innerHTML=event.data.substring(8);
