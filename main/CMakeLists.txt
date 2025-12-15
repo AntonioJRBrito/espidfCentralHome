@@ -17,7 +17,7 @@ idf_component_register(
         "device_manager.cpp"
         "ble_manager.cpp"
         "rtc_manager.cpp"
-        # "littlefs_console.cpp"
+        #
        
     INCLUDE_DIRS
         "."
