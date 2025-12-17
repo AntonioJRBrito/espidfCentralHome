@@ -13,7 +13,6 @@
 #include "mqtt_manager.hpp"
 #include "matter_manager.hpp"
 #include "automation_manager.hpp"
-#include "ota_manager.hpp"
 #include "device_manager.hpp"
 #include "ble_manager.hpp"
 #include "rtc_manager.hpp"
@@ -32,7 +31,6 @@ extern "C" void app_main(void) {
     MqttManager::init();
     MatterManager::init();
     AutomationManager::init();
-    OtaManager::init();
     DeviceManager::init();
     BleManager::init();
     RtcManager::init();

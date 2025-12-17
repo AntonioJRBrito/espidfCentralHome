@@ -18,10 +18,9 @@ namespace SyncManager
     constexpr uint32_t BIT_MQT = 1u << 8;
     constexpr uint32_t BIT_MTT = 1u << 9;
     constexpr uint32_t BIT_AUT = 1u << 10;
-    constexpr uint32_t BIT_OTA = 1u << 11;
-    constexpr uint32_t BIT_STO = 1u << 12;
+    constexpr uint32_t BIT_STO = 1u << 11;
     static constexpr uint32_t ALL_MASK =
-        BIT_NET | BIT_RTC | BIT_DEV | BIT_SOC | BIT_WEB | BIT_UDP | BIT_BRK | BIT_MQT | BIT_MTT | BIT_AUT | BIT_OTA | BIT_STO | BIT_BLE;
+        BIT_NET | BIT_RTC | BIT_DEV | BIT_SOC | BIT_WEB | BIT_UDP | BIT_BRK | BIT_MQT | BIT_MTT | BIT_AUT | BIT_STO | BIT_BLE;
     static uint32_t ready_mask = 0;
     static void onReady(void* domain, esp_event_base_t base, int32_t id, void* arg)
     {
@@ -38,7 +37,6 @@ namespace SyncManager
             eventId == EventId::MQT_READY  ||
             eventId == EventId::MTT_READY  ||
             eventId == EventId::AUT_READY  ||
-            eventId == EventId::OTA_READY  ||
             eventId == EventId::STO_READY  ||
             eventId == EventId::BLE_READY)
         {
@@ -54,7 +52,6 @@ namespace SyncManager
                 case EventId::MQT_READY:  ready_mask |= BIT_MQT; break;
                 case EventId::MTT_READY:  ready_mask |= BIT_MTT; break;
                 case EventId::AUT_READY:  ready_mask |= BIT_AUT; break;
-                case EventId::OTA_READY:  ready_mask |= BIT_OTA; break;
                 case EventId::STO_READY:  ready_mask |= BIT_STO; break;
                 case EventId::BLE_READY:  ready_mask |= BIT_BLE; break;
                 default:

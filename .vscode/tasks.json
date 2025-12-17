@@ -1,12 +1,38 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Gerar e gravar LittleFS",
-      "type": "shell",
-      "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\mklittlefs.exe -c data -p 256 -b 4096 -s 0x300000 build\\littlefs.bin && C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe -m esptool --chip esp32s3 write_flash 0x810000 build\\littlefs.bin",
-      "options": { "cwd": "${workspaceFolder}" },
-      "problemMatcher": []
-    }
-  ]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Gerar e gravar LittleFS",
+            "type": "shell",
+            "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\mklittlefs.exe -c data -p 256 -b 4096 -s 0x300000 build\\littlefs.bin && C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe -m esptool --chip esp32s3 write_flash 0x810000 build\\littlefs.bin",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Flash Factory Partition",
+            "type": "shell",
+            "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe",
+            "args": [
+                "${workspaceFolder}\\flash_factory.py"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Flash APP0 Partition",
+            "type": "shell",
+            "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe",
+            "args": [
+                "${workspaceFolder}\\flash_app0.py"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        }
+    ]
 }

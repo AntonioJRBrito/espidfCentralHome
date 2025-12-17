@@ -21,9 +21,11 @@
 #include <sys/socket.h>
 #include "esp_timer.h"
 #include <set>
+
 #include "storage_manager.hpp"
 
 namespace SocketManager {
+    // inits
     esp_err_t init();
     esp_err_t start(httpd_handle_t server);
     esp_err_t stop();
@@ -42,4 +44,20 @@ namespace SocketManager {
         bool operator==(int other_fd) const { return fd == other_fd; }
     };
     struct KillTaskArg{int fd;};
+    // Lista de file descriptors dos clientes WebSocket conectados
+    static std::vector<WebSocketClient> ws_clients;
+    static std::mutex clients_mutex;
+    static httpd_handle_t ws_server = nullptr;
+    static bool ws_registered = false;
+    static httpd_uri_t ws_uri;
+    // controle de FDs abertos
+    #define SUSPEND_AP 20
+    static esp_timer_handle_t ap_suspend_timer = nullptr;
+    static wifi_mode_t saved_wifi_mode = WIFI_MODE_NULL;
+    static std::mutex ap_suspend_mutex;
+    static const int64_t KEEP_INTERVAL_MS = 15*1000;
+    static const TickType_t KILL_TASK_DELAY_TICKS = pdMS_TO_TICKS(40);
+    static esp_timer_handle_t keep_timer = nullptr;
+    static std::set<int> pending_keep_fds;
+    static std::mutex pending_mutex;
 }

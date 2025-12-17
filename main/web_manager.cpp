@@ -7,6 +7,7 @@ namespace WebManager {
     static httpd_uri_t uri_handlers[30];
     static int uri_count = 0;
     static int fd_onclosed = 0;
+    static uint32_t current_token = 0;
     static uint32_t gerarTokenNumerico() {return 10000000 + (esp_random() % 90000000);}
     // Função para decodificar strings URL-encoded
     std::string url_decode(const std::string& encoded_string) {
@@ -55,12 +56,24 @@ namespace WebManager {
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
         if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
-        const Page* page = StorageManager::getPage(uri.c_str());
-        if (!page) {
-            ESP_LOGW(TAG, "Arquivo estático não encontrado na PSRAM: %s", uri.c_str());
-            httpd_resp_send_404(req);
-            return ESP_ERR_NOT_FOUND;
+        size_t query_pos = uri.find('?');
+        if(query_pos!=std::string::npos){uri=uri.substr(0,query_pos);}
+        ESP_LOGI(TAG,"uri:%s",uri.c_str());
+        if(uri=="atualizar.html") {
+            ESP_LOGI(TAG,"entrei em atualizar.html");
+            char query_str[64] = {0};
+            if (httpd_req_get_url_query_str(req, query_str, sizeof(query_str)) == ESP_OK) {
+                ESP_LOGI(TAG, "Query string: %s", query_str);
+                char token_value[16] = {0};
+                if (httpd_query_key_value(query_str, "token", token_value, sizeof(token_value)) == ESP_OK) {
+                    uint32_t received_token = strtoul(token_value, nullptr, 10);
+                    ESP_LOGI(TAG, "Token recebido: %u, esperado: %u", received_token, current_token);
+                    if(received_token != current_token) {ESP_LOGW(TAG, "Token inválido");uri = "index.html";}
+                } else {ESP_LOGW(TAG, "Parâmetro 'token' não encontrado");uri = "index.html";}
+            } else {ESP_LOGW(TAG, "Token ausente");uri = "index.html";}
         }
+        const Page* page = StorageManager::getPage(uri.c_str());
+        if(!page){ESP_LOGW(TAG,"Arquivo estático não encontrado na PSRAM:%s",uri.c_str());httpd_resp_send_404(req);return ESP_ERR_NOT_FOUND;}
         httpd_resp_set_type(req, page->mime.c_str());
         httpd_resp_set_hdr(req, "Connection", "close");
         httpd_resp_send(req, (const char*)page->data, page->size);
@@ -103,9 +116,9 @@ namespace WebManager {
                     ESP_LOGD(TAG, "Senha recebida: '%s'", provided_password.c_str());
                     if (StorageManager::cd_cfg && !StorageManager::isBlankOrEmpty(StorageManager::cd_cfg->password) &&
                         provided_password == StorageManager::cd_cfg->password) {
-                        uint32_t token = gerarTokenNumerico();
-                        response_str = "sucesso:" + std::to_string(token);
-                        ESP_LOGI(TAG, "Login bem-sucedido. Token gerado: %u", token);
+                        current_token = gerarTokenNumerico();
+                        response_str = "sucesso:" + std::to_string(current_token);
+                        ESP_LOGI(TAG, "Login bem-sucedido. Token gerado: %u", current_token);
                     } else {
                         response_str = "erro";
                         ESP_LOGW(TAG, "Login falhou: senha incorreta ou não configurada.");
@@ -254,7 +267,7 @@ namespace WebManager {
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/agenda.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/automacao.html",HTTP_GET,serve_static_file_handler);
-        registerUriHandler("/atualizar.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/atualizar.html*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/central.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/css/*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/js/*",HTTP_GET,serve_static_file_handler);

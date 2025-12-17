@@ -26,6 +26,20 @@
       "tooltip": "Gera e grava a imagem LittleFS no ESP32‑S3",
       "alignment": "left",
       "color": "default"
+    },
+    {
+        "label": "$(zap) Factory",
+        "task": "Flash Factory Partition",
+        "tooltip": "Grava firmware na partição factory",
+        "alignment": "left",
+        "color": "default"
+    },
+    {
+        "label": "$(zap) APP0",
+        "task": "Flash APP0 Partition",
+        "tooltip": "Grava firmware na partição app0",
+        "alignment": "left",
+        "color": "default"
     }
   ],
   "files.associations": {
