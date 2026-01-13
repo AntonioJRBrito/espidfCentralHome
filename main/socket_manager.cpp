@@ -329,7 +329,6 @@ namespace SocketManager {
             free(jsonStr);
             sendToClient(fd,result.c_str());
         }
-        
         else if (strncmp(message.c_str(),"INT:",4) == 0) {
             std::string message_wop = message.substr(4);
             std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
