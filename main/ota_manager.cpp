@@ -61,7 +61,6 @@ namespace OtaManager {
         if(total_read<=0){ESP_LOGE(TAG,"FList: nenhum dado recebido");free(response_buffer);return firmware_list;}
         response_buffer[total_read] = '\0';
         ESP_LOGI(TAG, "FList: resposta recebida (%d bytes)", total_read);
-        // Procura por <a href="*.bin">
         const char* pos = response_buffer;
         while ((pos = strstr(pos, "<a href=\"")) != nullptr) {
             pos += 9;

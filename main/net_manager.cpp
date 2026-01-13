@@ -367,7 +367,7 @@ namespace NetManager
         ap_cfg.ap.ssid[sizeof(ap_cfg.ap.ssid)-1]='\0';
         ap_cfg.ap.ssid_len=strlen((char*)ap_cfg.ap.ssid);
         ap_cfg.ap.channel=1;
-        ap_cfg.ap.max_connection=4;
+        ap_cfg.ap.max_connection=1;
         ap_cfg.ap.authmode=WIFI_AUTH_OPEN;
         // --- Define modo e configurações ---
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));

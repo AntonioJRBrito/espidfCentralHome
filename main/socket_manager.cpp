@@ -4,6 +4,22 @@
 static const char* TAG = "SocketManager";
 
 namespace SocketManager {
+    // Lista de file descriptors dos clientes WebSocket conectados
+    static std::vector<WebSocketClient> ws_clients;
+    static std::mutex clients_mutex;
+    static httpd_handle_t ws_server = nullptr;
+    static bool ws_registered = false;
+    static httpd_uri_t ws_uri;
+    // controle de FDs abertos
+    #define SUSPEND_AP 20
+    static esp_timer_handle_t ap_suspend_timer = nullptr;
+    static wifi_mode_t saved_wifi_mode = WIFI_MODE_NULL;
+    static std::mutex ap_suspend_mutex;
+    static const int64_t KEEP_INTERVAL_MS = 15*1000;
+    static const TickType_t KILL_TASK_DELAY_TICKS = pdMS_TO_TICKS(40);
+    static esp_timer_handle_t keep_timer = nullptr;
+    static std::set<int> pending_keep_fds;
+    static std::mutex pending_mutex;
     //Funções info
     static void info(int fd){
         cJSON* root = cJSON_CreateObject();
@@ -290,6 +306,48 @@ namespace SocketManager {
             std::string filename = message.substr(4);
             ESP_LOGI(TAG, "handleSocketData: OTA recebido - %s", filename.c_str());
             OtaManager::downloadFirmwareAsync(filename,fd);
+        }
+        else if (message == "LDD") {
+            ESP_LOGI(TAG, "Comando LDD recebido para fd=%d", fd);
+            cJSON *root = cJSON_CreateArray();
+            std::vector<std::string> ids = StorageManager::getDeviceIds();
+            for (const auto &id : ids){
+                const Device* device = StorageManager::getDevice(id);
+                if (!device) continue;
+                cJSON *obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(obj,"id",device->id);
+                cJSON_AddStringToObject(obj,"name",device->name);
+                cJSON_AddNumberToObject(obj,"type",device->type);
+                cJSON_AddNumberToObject(obj,"status",device->status);
+                cJSON_AddNumberToObject(obj,"time",device->time);
+                cJSON_AddItemToArray(root,obj);
+            }
+            char *jsonStr = cJSON_PrintUnformatted(root);
+            std::string result = "ctnew";
+            result += jsonStr;
+            cJSON_Delete(root);
+            free(jsonStr);
+            sendToClient(fd,result.c_str());
+        }
+        
+        else if (strncmp(message.c_str(),"INT:",4) == 0) {
+            std::string message_wop = message.substr(4);
+            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
+            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
+            else{
+                const Device* device_ptr = StorageManager::getDevice(parts[0]);
+                if (device_ptr) {
+                    DeviceDTO device_dto;
+                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+                    if(device_dto.type==1){device_dto.status=1-device_dto.status;}
+                    else if(device_dto.type<=4){device_dto.status=1;}
+                    RequestSave requester;
+                    requester.requester = std::stoi(parts[0]);
+                    requester.request_int = std::stoi(parts[0]);
+                    requester.resquest_type=RequestTypes::REQUEST_INT;
+                    StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                }
+            }
         }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);

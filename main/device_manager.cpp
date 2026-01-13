@@ -53,7 +53,7 @@ namespace DeviceManager{
     static const uint8_t DISPLAY_PAGE_COUNT=3;
     // devices
     static const gpio_num_t OUTPUT_DEV[4]={GPIO_NUM_41,GPIO_NUM_42,GPIO_NUM_40,GPIO_NUM_39};
-    static const touch_pad_t BUTTON_DEV[4]={TOUCH_PAD_NUM4,TOUCH_PAD_NUM5,TOUCH_PAD_NUM6,TOUCH_PAD_NUM7};
+    static const touch_pad_t BUTTON_DEV[4]={TOUCH_PAD_NUM7,TOUCH_PAD_NUM6,TOUCH_PAD_NUM5,TOUCH_PAD_NUM4};
     static esp_timer_handle_t timers[4]={nullptr,nullptr,nullptr,nullptr};
     static uint32_t last_press_time[4]={0,0,0,0};
     static const uint32_t DEBOUNCE_MS=200;
@@ -377,7 +377,7 @@ namespace DeviceManager{
             requester.request_int=dev_id;
             requester.resquest_type=RequestTypes::REQUEST_INT;
             StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
-        }       
+        }
     }
     static void handlerService(){
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);

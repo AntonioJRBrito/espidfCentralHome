@@ -86,7 +86,7 @@ namespace Storage {
         fclose(f);
         StorageManager::registerDevice(dev);
     }
-    void loadAllDevices() {
+    void loadAllDevices(){
         const char* dir_path = "/littlefs/device";
         DIR* dir = opendir(dir_path);
         if(!dir){ESP_LOGW(TAG, "Diretório /device não encontrado");return;}
