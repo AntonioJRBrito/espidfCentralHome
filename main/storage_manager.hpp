@@ -163,6 +163,11 @@ struct SensorDTO {
         memset(x_str, 0, sizeof(x_str));
     }
 };
+struct Automation {
+    char sensor_id[MAX_ID_LEN];
+    char device_id[MAX_ID_LEN];
+    uint8_t action;
+};
 struct Page {
     void* data;
     size_t size;
@@ -256,6 +261,10 @@ namespace StorageManager {
     const Sensor* getSensor(const std::string& id);
     size_t getSensorCount();
     std::vector<std::string> getSensorIds();
+    // Funções para automação
+    void registerAutomation(Automation* rule);
+    std::vector<Automation*> getAutomationsBySensor(const std::string& sensor_id);
+    esp_err_t removeAutomation(const std::string& sensor_id, const std::string& device_id);
     // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
     // Função para enfileirar requisições de armazenamento

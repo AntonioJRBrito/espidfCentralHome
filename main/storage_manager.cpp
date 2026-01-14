@@ -15,6 +15,7 @@ namespace StorageManager {
     static std::unordered_map<std::string, Page*> pageMap;
     static std::unordered_map<std::string, Device*> deviceMap;
     static std::unordered_map<std::string, Sensor*> sensorMap;
+    static std::unordered_map<std::string, Automation*> automationMap;
     // --- Funções de Utilidade ---
     bool isBlankOrEmpty(const char* str) {
         if (str == nullptr || str[0] == '\0') {return true;}
@@ -104,7 +105,7 @@ namespace StorageManager {
         auto it = sensorMap.find(id);
         return (it != sensorMap.end()) ? it->second : nullptr;
     }
-    // Função interna para obter dispositivo
+    // Função interna para obter sensor
     static Sensor* getMutableSensorInternal(const std::string& id) {
         auto it = sensorMap.find(id);
         return (it != sensorMap.end()) ? it->second : nullptr;
@@ -117,6 +118,26 @@ namespace StorageManager {
         ids.reserve(sensorMap.size());
         for (const auto& pair : sensorMap) {ids.push_back(pair.first);}
         return ids;
+    }
+    // --- Funções de Automação ---
+    void registerAutomation(Automation* rule) {
+        if (!rule) return;
+        std::string sensor_key(rule->sensor_id);
+        automationMap[sensor_key] = rule;
+        ESP_LOGI(TAG, "Automação registrada: sensor='%s' → device='%s' (ação=%d)", 
+                rule->sensor_id, rule->device_id, rule->action);
+    }
+    Automation* getAutomationBySensor(const std::string& sensor_id) {
+        auto it = automationMap.find(sensor_id);
+        return (it != automationMap.end()) ? it->second : nullptr;
+    }
+    esp_err_t removeAutomation(const std::string& sensor_id) {
+        auto it = automationMap.find(sensor_id);
+        if (it == automationMap.end()) return ESP_ERR_NOT_FOUND;
+        heap_caps_free(it->second);
+        automationMap.erase(it);
+        ESP_LOGI(TAG, "Automação removida: sensor='%s'", sensor_id.c_str());
+        return ESP_OK;
     }
     // --- Handlers de Eventos ---
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
