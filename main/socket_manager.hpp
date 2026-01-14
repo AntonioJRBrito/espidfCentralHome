@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include "esp_timer.h"
 #include <set>
+#include <esp_heap_caps.h>
 
 #include "storage_manager.hpp"
 
@@ -29,8 +30,9 @@ namespace SocketManager {
     esp_err_t init();
     esp_err_t start(httpd_handle_t server);
     esp_err_t stop();
-    // Envia mensagem para um cliente específico
+    // Envia mensagem
     esp_err_t sendToClient(int fd, const char* message);
+    void broadcastToAllClients(const char* message);
     static void kill_client_task(void* arg);
     static void removeClientByFd(int fd);
     void handle_ws_alive(int fd);

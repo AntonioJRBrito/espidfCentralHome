@@ -108,9 +108,9 @@
             }
             if(event.data.startsWith("ctup")){
               const json=JSON.parse(event.data.substring(4));
-              const [id,nome,tipo,status,tempo]=json;
-              const existBtn=document.getElementById(id);
-              const newBtn=genDisp({id,nome,tipo,status,tempo});
+              const disp=json[0];
+              const newBtn=genDisp({id:disp["id"],nome:disp["name"],tipo:disp["type"],status:disp["status"],tempo:disp["time"]||0});
+              const existBtn=document.getElementById(disp["id"]);
               if(existBtn){painel.replaceChild(newBtn,existBtn);}else{painel.appendChild(newBtn);}
               return;
             }

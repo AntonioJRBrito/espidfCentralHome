@@ -348,11 +348,47 @@ namespace SocketManager {
                 }
             }
         }
+        else if (strncmp(message.c_str(),"CMD:",4) == 0) {
+            std::string message_wop = message.substr(4);
+            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
+            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
+            else{
+                const Device* device_ptr = StorageManager::getDevice(parts[0]);
+                if (device_ptr) {
+                    DeviceDTO device_dto;
+                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+                    if(device_dto.type==1){device_dto.status=1-device_dto.status;}
+                    else if(device_dto.type<=4){device_dto.status=1;}
+                    std::string payload = "ACT:"+parts[1];
+                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
+                    strcpy(pub_data->device_id,parts[0].c_str());
+                    strcpy(pub_data->payload,payload.c_str());
+                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
+                }
+            }
+        }
+        else if (strncmp(message.c_str(),"BRG:",4) == 0) {
+            std::string message_wop = message.substr(4);
+            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
+            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
+            else{
+                const Device* device_ptr = StorageManager::getDevice(parts[0]);
+                if (device_ptr) {
+                    DeviceDTO device_dto;
+                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+                    std::string payload = "BRG:"+parts[1];
+                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
+                    strcpy(pub_data->device_id,parts[0].c_str());
+                    strcpy(pub_data->payload,payload.c_str());
+                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
+                }
+            }
+        }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
         return ret;
     }
-    // Envia mensagem para um cliente específico
+    //Envia mensagem para um cliente específico
     esp_err_t sendToClient(int fd, const char* message) {
         if (!ws_server || !message) {return ESP_ERR_INVALID_ARG;}
         httpd_ws_frame_t ws_pkt;
@@ -363,6 +399,15 @@ namespace SocketManager {
         esp_err_t ret = httpd_ws_send_frame_async(ws_server, fd, &ws_pkt);
         if (ret != ESP_OK) {ESP_LOGW(TAG, "Falha ao enviar para fd=%d: %s", fd, esp_err_to_name(ret));}
         return ret;
+    }
+    //Envia mensagem para todos os clientes
+    void broadcastToAllClients(const char* message) {
+        if (!message) return;
+        std::lock_guard<std::mutex> lk(clients_mutex);
+        for (const auto& client : ws_clients) {
+            esp_err_t ret = sendToClient(client.fd, message);
+            if (ret != ESP_OK) {ESP_LOGW(TAG, "Falha ao enviar broadcast para fd=%d", client.fd);}
+        }
     }
     //Handler de eventos do EventDomain::NETWORK
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* data) {
@@ -438,10 +483,38 @@ namespace SocketManager {
         if(data){memcpy(&client_fd,data,sizeof(int));}
         esp_err_t ret = ESP_OK;
         const char* response;
-        if (evt == EventId::STO_CONFIGSAVED) {response = "configOk";}
-        else if (evt == EventId::STO_CREDENTIALSAVED) {response = "credentialOk";}
-        else {return;}
-        ret = sendToClient(client_fd,response);
+        if (evt == EventId::STO_CONFIGSAVED) {
+            response = "configOk";
+            ret = sendToClient(client_fd,response);
+        }
+        if (evt == EventId::STO_CREDENTIALSAVED) {
+            response = "credentialOk";
+            ret = sendToClient(client_fd,response);
+        }
+        if (evt == EventId::STO_DEVICESAVED) {
+            RequestSave requester;
+            std::string requestId;
+            memcpy(&requester,data,sizeof(RequestSave));
+            if(requester.resquest_type==RequestTypes::REQUEST_INT){requestId = std::to_string(requester.request_int);}
+            if(requester.resquest_type==RequestTypes::REQUEST_CHAR){requestId = requester.request_char;}
+            const Device* device = StorageManager::getDevice(requestId);
+            if (device){
+                cJSON *root = cJSON_CreateArray();
+                cJSON *obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(obj,"id",device->id);
+                cJSON_AddStringToObject(obj,"name",device->name);
+                cJSON_AddNumberToObject(obj,"type",device->type);
+                cJSON_AddNumberToObject(obj,"status",device->status);
+                cJSON_AddNumberToObject(obj,"time",device->time);
+                cJSON_AddItemToArray(root,obj);
+                char *jsonStr = cJSON_PrintUnformatted(root);
+                std::string result = "ctup";
+                result += jsonStr;
+                cJSON_Delete(root);
+                free(jsonStr);
+                broadcastToAllClients(result.c_str());
+            }
+        }
         if (ret != ESP_OK) {ESP_LOGI(TAG,"onStorageEvent RETURN=%s",esp_err_to_name(ret));}
     }
     // Inicialização
