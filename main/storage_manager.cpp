@@ -13,9 +13,9 @@ namespace StorageManager {
     static QueueHandle_t s_storage_queue = nullptr;
     static SemaphoreHandle_t s_flash_mutex = nullptr;
     static std::unordered_map<std::string, Page*> pageMap;
-    static std::unordered_map<std::string, Device*> deviceMap;
-    static std::unordered_map<std::string, Sensor*> sensorMap;
-    static std::unordered_map<std::string, Automation*> automationMap;
+    static std::unordered_map<std::string, Device*>* deviceMap = nullptr;
+    static std::unordered_map<std::string, Sensor*>* sensorMap = nullptr;
+    std::unordered_map<std::string, Automation*>* automationMap = nullptr;
     // --- Funções de Utilidade ---
     bool isBlankOrEmpty(const char* str) {
         if (str == nullptr || str[0] == '\0') {return true;}
@@ -63,81 +63,68 @@ namespace StorageManager {
     }
     // --- Gerenciamento de Dispositivos ---
     void registerDevice(Device* device) {
-        auto it = deviceMap.find(std::string(device->id));
-        if (it != deviceMap.end()) {
+        auto it = deviceMap->find(std::string(device->id));
+        if (it != deviceMap->end()) {
             ESP_LOGW(TAG, "Dispositivo '%s' já existe. Liberando memória antiga.",std::string(device->id));
             heap_caps_free(it->second);
         }
-        deviceMap[std::string(device->id)] = device;
+        (*deviceMap)[std::string(device->id)] = device;
         ESP_LOGI(TAG, "Disp regist:(ID=%s)(Nome=%s)(Tipo=%d)(Status=%d)(Tempo=%d)(x_int=%d)(x_str=%s)",device->id,device->name,device->type,device->status,device->time,device->x_int,device->x_str);
     }
     // Função pública para obter dispositivo
     const Device* getDevice(const std::string& id) {
-        auto it = deviceMap.find(id);
-        return (it != deviceMap.end()) ? it->second : nullptr;
+        auto it = deviceMap->find(id);
+        return (it != deviceMap->end()) ? it->second : nullptr;
     }
     // Função interna para obter dispositivo
     static Device* getMutableDeviceInternal(const std::string& id) {
-        auto it = deviceMap.find(id);
-        return (it != deviceMap.end()) ? it->second : nullptr;
+        auto it = deviceMap->find(id);
+        return (it != deviceMap->end()) ? it->second : nullptr;
     }
     size_t getDeviceCount() {
-        return deviceMap.size();
+        return deviceMap->size();
     }
     std::vector<std::string> getDeviceIds() {
         std::vector<std::string> ids;
-        ids.reserve(deviceMap.size());
-        for (const auto& pair : deviceMap) {ids.push_back(pair.first);}
+        if (!deviceMap) return ids;
+        ids.reserve(deviceMap->size());
+        for (const auto& pair : *deviceMap) {ids.push_back(pair.first);}
         return ids;
     }
     // --- Gerenciamento de Sensores ---
     void registerSensor(Sensor* sensor) {
-        auto it = sensorMap.find(std::string(sensor->id));
-        if (it != sensorMap.end()) {
+        auto it = sensorMap->find(std::string(sensor->id));
+        if (it != sensorMap->end()) {
             ESP_LOGW(TAG, "Sensor '%s' já existe. Liberando memória antiga.",std::string(sensor->id));
             heap_caps_free(it->second);
         }
-        sensorMap[std::string(sensor->id)] = sensor;
+        (*sensorMap)[std::string(sensor->id)] = sensor;
         ESP_LOGI(TAG, "Sensor registrado:(ID=%s)(Nome=%s)(Tipo=%d)(tempo=%d)(x_int=%d)(x_str=%s)",sensor->id,sensor->name,sensor->type,sensor->time,sensor->x_int,sensor->x_str);
     }
     // Função pública para obter sensor
     const Sensor* getSensor(const std::string& id) {
-        auto it = sensorMap.find(id);
-        return (it != sensorMap.end()) ? it->second : nullptr;
+        auto it = sensorMap->find(id);
+        return (it != sensorMap->end()) ? it->second : nullptr;
     }
     // Função interna para obter sensor
     static Sensor* getMutableSensorInternal(const std::string& id) {
-        auto it = sensorMap.find(id);
-        return (it != sensorMap.end()) ? it->second : nullptr;
+        auto it = sensorMap->find(id);
+        return (it != sensorMap->end()) ? it->second : nullptr;
     }
     size_t getSensorCount() {
-        return sensorMap.size();
+        return sensorMap->size();
     }
     std::vector<std::string> getSensorIds() {
         std::vector<std::string> ids;
-        ids.reserve(sensorMap.size());
-        for (const auto& pair : sensorMap) {ids.push_back(pair.first);}
+        if (!sensorMap) return ids;
+        ids.reserve(sensorMap->size());
+        for (const auto& pair : *sensorMap) {ids.push_back(pair.first);}
         return ids;
     }
     // --- Funções de Automação ---
-    void registerAutomation(Automation* rule) {
-        if (!rule) return;
-        std::string sensor_key(rule->sensor_id);
-        automationMap[sensor_key] = rule;
-        ESP_LOGI(TAG, "Automação registrada: sensor='%s' → device='%s' (ação=%d)", 
-                rule->sensor_id, rule->device_id, rule->action);
-    }
-    Automation* getAutomationBySensor(const std::string& sensor_id) {
-        auto it = automationMap.find(sensor_id);
-        return (it != automationMap.end()) ? it->second : nullptr;
-    }
-    esp_err_t removeAutomation(const std::string& sensor_id) {
-        auto it = automationMap.find(sensor_id);
-        if (it == automationMap.end()) return ESP_ERR_NOT_FOUND;
-        heap_caps_free(it->second);
-        automationMap.erase(it);
-        ESP_LOGI(TAG, "Automação removida: sensor='%s'", sensor_id.c_str());
-        return ESP_OK;
+    const std::vector<DeviceAction>* getAutomationBySensor(const std::string& sensor_id) {
+        auto it = automationMap->find(sensor_id);
+        return (it != automationMap->end()) ? it->second->actions : nullptr;
     }
     // --- Handlers de Eventos ---
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
@@ -271,9 +258,15 @@ namespace StorageManager {
                                     break;
                                 }
                                 case StorageStructType::AUTOMA_DATA: {
-                                    ESP_LOGI(TAG, "Salvando AUTOMA_DATA (TODO)");
-                                    // TODO: Implementar lógica para AUTOMA_DATA
-                                    err = ESP_ERR_NOT_SUPPORTED;
+                                    ESP_LOGI(TAG, "Salvando AUTOMA_DATA");
+                                    if(request.data_ptr && request.data_len > 0){
+                                        char* json_str = (char*)malloc(request.data_len + 1);
+                                        if (!json_str) {ESP_LOGE(TAG, "Falha ao alocar buffer para JSON");break;}
+                                        memcpy(json_str, request.data_ptr, request.data_len);
+                                        json_str[request.data_len] = '\0';
+                                        Storage::saveAutomation(json_str);
+                                        free(json_str);
+                                    }else{ESP_LOGE(TAG, "AUTOMA_DATA: dados inválidos");}
                                     break;
                                 }
                                 case StorageStructType::SCHEDULE_DATA: {
@@ -315,12 +308,14 @@ namespace StorageManager {
         if (!id_cfg) { heap_caps_free(cfg); ESP_LOGE(TAG, "Falha ao alocar IDConfig na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "IDConfig alocado na PSRAM.");
         cd_cfg = (CredentialConfig*)heap_caps_calloc(1, sizeof(CredentialConfig), MALLOC_CAP_SPIRAM);
-        if (!cd_cfg) { heap_caps_free(cfg); ESP_LOGE(TAG, "Falha ao alocar CredentialConfig na PSRAM"); return ESP_ERR_NO_MEM; }
+        if (!cd_cfg) { heap_caps_free(cfg); heap_caps_free(id_cfg); ESP_LOGE(TAG, "Falha ao alocar CredentialConfig na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "CredentialConfig alocado na PSRAM.");
         scanCache = (WifiScanCache*)heap_caps_calloc(1, sizeof(WifiScanCache), MALLOC_CAP_SPIRAM);
-        if (!scanCache) { heap_caps_free(cfg); heap_caps_free(id_cfg); ESP_LOGE(TAG, "Falha ao alocar WifiScanCache na PSRAM"); return ESP_ERR_NO_MEM; }
+        if (!scanCache) { heap_caps_free(cfg); heap_caps_free(id_cfg); heap_caps_free(cd_cfg); ESP_LOGE(TAG, "Falha ao alocar WifiScanCache na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "WifiScanCache alocado na PSRAM.");
-        // 2. Alocação do buffer HTML dentro do WifiScanCache
+        deviceMap = new std::unordered_map<std::string, Device*>();
+        sensorMap = new std::unordered_map<std::string, Sensor*>();
+        automationMap = new std::unordered_map<std::string, Automation*>();
         scanCache->networks_html_ptr = (char*)heap_caps_malloc(MAX_HTML_OPTIONS_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
         if (!scanCache->networks_html_ptr) {
             ESP_LOGE(TAG, "Falha ao alocar %d bytes para cache WiFi HTML na PSRAM", MAX_HTML_OPTIONS_BUFFER_SIZE);

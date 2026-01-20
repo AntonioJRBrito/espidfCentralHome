@@ -117,7 +117,7 @@ namespace SocketManager {
             KillTaskArg* a = (KillTaskArg*) malloc(sizeof(KillTaskArg));
             if(!a){ESP_LOGE(TAG,"falha malloc para kill task fd=%d; fechando direto", fd);removeClientByFd(fd);continue;}
             a->fd = fd;
-            BaseType_t rc = xTaskCreate(kill_client_task, "kill_client", 2048/sizeof(StackType_t), a, tskIDLE_PRIORITY+1, NULL);
+            BaseType_t rc = xTaskCreate(kill_client_task, "kill_client", 4096/sizeof(StackType_t), a, tskIDLE_PRIORITY+1, NULL);
             if(rc!=pdPASS){ESP_LOGE(TAG,"falha ao criar kill task para fd=%d; fechando direto", fd);free(a);removeClientByFd(fd);}
             else {ESP_LOGI(TAG,"kill task criada para fd=%d", fd);}
         }
@@ -328,6 +328,59 @@ namespace SocketManager {
             cJSON_Delete(root);
             free(jsonStr);
             sendToClient(fd,result.c_str());
+        }
+        else if (message == "LDM") {
+            ESP_LOGI(TAG, "Comando LDM recebido para fd=%d", fd);
+            cJSON *root = cJSON_CreateObject();
+            cJSON *devices_array = cJSON_CreateArray();
+            std::vector<std::string> ids = StorageManager::getDeviceIds();
+            for (const auto &id : ids) {
+                const Device* device = StorageManager::getDevice(id);
+                if (!device) continue;
+                if (device->type < 1 || device->type > 3) continue;
+                cJSON *device_item = cJSON_CreateArray();
+                cJSON_AddItemToArray(device_item, cJSON_CreateString(device->id));
+                cJSON_AddItemToArray(device_item, cJSON_CreateString(device->name));
+                cJSON_AddItemToArray(device_item, cJSON_CreateNumber(device->type));
+                cJSON_AddItemToArray(devices_array, device_item);
+            }
+            cJSON_AddItemToObject(root, "0", devices_array);
+            cJSON *sensors_obj = cJSON_CreateObject();
+            std::vector<std::string> sensor_ids = StorageManager::getSensorIds();
+            for (const auto &sensor_id : sensor_ids) {
+                const Sensor* sensor = StorageManager::getSensor(sensor_id);
+                if (!sensor) continue;
+                cJSON *sensor_data = cJSON_CreateObject();
+                cJSON_AddStringToObject(sensor_data, "name", sensor->name);
+                cJSON *act_sense_array = cJSON_CreateArray();
+                const std::vector<DeviceAction>* actions = StorageManager::getAutomationBySensor(sensor_id);
+                if (actions) {
+                    for (const auto &action : *actions) {
+                        cJSON *action_item = cJSON_CreateObject();
+                        cJSON_AddStringToObject(action_item, "idAct", action.device_id);
+                        cJSON_AddNumberToObject(action_item, "statAct", action.action);
+                        cJSON_AddItemToArray(act_sense_array, action_item);
+                    }
+                }
+                cJSON_AddItemToObject(sensor_data, "actSense", act_sense_array);
+                cJSON_AddItemToObject(sensors_obj, sensor_id.c_str(), sensor_data);
+            }
+            cJSON_AddItemToObject(root, "1", sensors_obj);
+            char *jsonStr = cJSON_PrintUnformatted(root);
+            std::string result = "sendData";
+            result += jsonStr;
+            cJSON_Delete(root);
+            free(jsonStr);
+            sendToClient(fd, result.c_str());
+        }
+        else if (strncmp(message.c_str(),"SVM:",4) == 0) {
+            std::string payload_str = message.substr(4);
+            RequestSave requester;
+            requester.resquest_type=RequestTypes::REQUEST_NONE;
+            requester.requester=-1;
+            esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::AUTOMA_DATA,payload_str.c_str(),payload_str.length(),requester);
+            if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de AUTOMA_DATA");}
+            else {ESP_LOGI(TAG, "Requisição AUTOMA_DATA enfileirada com sucesso");}
         }
         else if (strncmp(message.c_str(),"INT:",4) == 0) {
             std::string message_wop = message.substr(4);

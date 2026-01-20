@@ -12,6 +12,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include "cJSON.h"
 
 namespace Storage {
     esp_err_t init();
@@ -21,4 +22,6 @@ namespace Storage {
     esp_err_t deleteDeviceFile(const std::string& id);
     esp_err_t saveSensorFile(Sensor* sensor);
     esp_err_t deleteSensorFile(const std::string& id);
+    void loadAutomation();
+    void saveAutomation(const char* json_payload);
 }

@@ -59,8 +59,7 @@ namespace WebManager {
         size_t query_pos = uri.find('?');
         if(query_pos!=std::string::npos){uri=uri.substr(0,query_pos);}
         ESP_LOGI(TAG,"uri:%s",uri.c_str());
-        if(uri=="atualizar.html"||uri=="central.html"){
-            ESP_LOGI(TAG,"entrei em atualizar.html");
+        if(uri=="atualizar.html"||uri=="central.html"||uri=="automacao.html"||uri=="agenda.html"){
             char query_str[64] = {0};
             if (httpd_req_get_url_query_str(req, query_str, sizeof(query_str)) == ESP_OK) {
                 ESP_LOGI(TAG, "Query string: %s", query_str);

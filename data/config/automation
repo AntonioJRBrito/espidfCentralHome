@@ -1,0 +1,15 @@
+{
+  "x5x5x5x5x5x5": {
+    "actions": [
+      {"device_id": "1", "action": 1},
+      {"device_id": "2", "action": 1},
+      {"device_id": "3", "action": 1}
+    ]
+  },
+  "4": {
+    "actions": [
+      {"device_id": "1", "action": 1},
+      {"device_id": "3", "action": 1}
+    ]
+  }
+}

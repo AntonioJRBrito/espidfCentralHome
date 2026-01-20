@@ -305,10 +305,15 @@ namespace BrokerManager {
                                 if (sensor_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Device '%s'", sensor_dto.id);}
                                 else {ESP_LOGI(TAG, "INF_HANDLER: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
                             } else if (payload.rfind("SNA:", 0) == 0) {
-                                //depois eu vejo o que recebe
-                                ESP_LOGI(TAG, "Payload SNA recebido de '%s'.", client_devsen_id.c_str());
-                                PublishBrokerData pub_data("123456654321","ACT:1");
-                                EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST,&pub_data,sizeof(pub_data));
+                                std::string inform = payload.substr(4);
+                                if(inform!="0"&&inform!="1"){ESP_LOGW(TAG,"SNA inválido: %s",inform.c_str());}
+                                else{
+                                    AutomationTaskParams params;
+                                    params.inform=(uint8_t)std::stoi(inform);
+                                    strncpy(params.sensor_id,client_devsen_id.c_str(),sizeof(params.sensor_id)-1);
+                                    params.sensor_id[sizeof(params.sensor_id)-1]='\0';
+                                    EventBus::post(EventDomain::AUTOMATION,EventId::AUT_DETECTSENSOR,&params,sizeof(AutomationTaskParams));
+                                }
                             } else {
                                 ESP_LOGW(TAG, "Payload desconhecido '%s' de '%s'.", payload.c_str(), client_devsen_id.c_str());
                             }

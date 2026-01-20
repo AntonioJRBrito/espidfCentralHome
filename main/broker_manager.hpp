@@ -13,6 +13,7 @@
 #include "lwip/err.h"
 #include <algorithm>
 #include "storage_manager.hpp"
+#include "automation_manager.hpp"
 
 namespace BrokerManager
 {

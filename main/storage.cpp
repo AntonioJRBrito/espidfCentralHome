@@ -201,6 +201,67 @@ namespace Storage {
         ESP_LOGI(TAG, "Credenciais salvas com sucesso em LittleFS: %s", path);
         return ESP_OK;
     }
+    void loadAutomation() {
+        ESP_LOGI(TAG,"Carregando automações da flash...");
+        if (StorageManager::automationMap) {
+            for(auto& pair:*StorageManager::automationMap){if(pair.second){if(pair.second->actions){delete pair.second->actions;}free(pair.second);}}
+            StorageManager::automationMap->clear();
+        }
+        FILE* file = fopen("/littlefs/config/automation", "r");
+        if (!file) {ESP_LOGW(TAG, "Arquivo automation não encontrado");return;}
+        fseek(file, 0, SEEK_END);
+        size_t file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char* json_buffer = (char*)malloc(file_size + 1);
+        if (!json_buffer) {ESP_LOGE(TAG, "Falha ao alocar buffer JSON");fclose(file);return;}
+        fread(json_buffer, 1, file_size, file);
+        json_buffer[file_size] = '\0';
+        fclose(file);
+        cJSON* root = cJSON_Parse(json_buffer);
+        free(json_buffer);
+        if (!root) {ESP_LOGE(TAG, "Erro ao fazer parse do JSON");return;}
+        cJSON* sensor = root->child;
+        while (sensor) {
+            std::string sensor_id = sensor->string;
+            cJSON* actions_array = cJSON_GetObjectItem(sensor, "actions");
+            if (actions_array && actions_array->type == cJSON_Array) {
+                Automation* automation = (Automation*)malloc(sizeof(Automation));
+                strncpy(automation->sensor_id, sensor_id.c_str(), MAX_ID_LEN - 1);
+                automation->sensor_id[MAX_ID_LEN - 1] = '\0';
+                automation->actions = new std::vector<DeviceAction>();
+                cJSON* action_item = actions_array->child;
+                while (action_item) {
+                    cJSON* device_id_obj = cJSON_GetObjectItem(action_item, "device_id");
+                    cJSON* action_obj = cJSON_GetObjectItem(action_item, "action");
+                    if (device_id_obj && action_obj) {
+                        DeviceAction action;
+                        strncpy(action.device_id, device_id_obj->valuestring, MAX_ID_LEN - 1);
+                        action.device_id[MAX_ID_LEN - 1] = '\0';
+                        action.action = action_obj->valueint;
+                        automation->actions->push_back(action);
+                    }
+                    action_item = action_item->next;
+                }
+                if (!automation->actions->empty()) {
+                    (*StorageManager::automationMap)[sensor_id] = automation;
+                    ESP_LOGI(TAG, "Automação carregada: sensor=%s, ações=%zu", sensor_id.c_str(), automation->actions->size());
+                }
+            }
+            sensor = sensor->next;
+        }
+        cJSON_Delete(root);
+        ESP_LOGI(TAG, "Total de automações carregadas: %zu", StorageManager::automationMap->size());
+    }
+    void saveAutomation(const char* json_payload) {
+        ESP_LOGI(TAG, "Salvando automações na flash");
+        FILE* file = fopen("/littlefs/config/automation", "w");
+        if (!file) {ESP_LOGE(TAG, "Erro ao abrir arquivo automation para escrita");return;}
+        size_t written = fwrite(json_payload, 1, strlen(json_payload), file);
+        fclose(file);
+        if (written != strlen(json_payload)) {ESP_LOGE(TAG, "Erro ao escrever arquivo automation");return;}
+        ESP_LOGI(TAG, "Arquivo automation salvo com sucesso");
+        loadAutomation();
+    }
     esp_err_t init() {
         ESP_LOGI(TAG, "Montando LittleFS...");
         esp_vfs_littlefs_conf_t conf = {"/littlefs","littlefs",nullptr,false,false,false,false};
@@ -226,6 +287,7 @@ namespace Storage {
         loadFileToPsram("/littlefs/ha/light_detail.json", "light_detail.json", "application/json");
         loadAllDevices();
         loadAllSensors();
+        loadAutomation();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
         return ESP_OK;
     }

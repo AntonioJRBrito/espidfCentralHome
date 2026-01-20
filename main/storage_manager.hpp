@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
-#include <new>
+// #include <new>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -32,6 +32,7 @@
 #define MAX_MQTT_CLIENT_ID_LEN          23
 #define MAX_MQTT_TOPIC_LEN              64
 #define MAX_DEVICE_ID_LEN               23
+#define MAX_DEVICES_PER_SENSOR          20
 
 struct WifiScanCache {
     char* networks_html_ptr;
@@ -163,10 +164,13 @@ struct SensorDTO {
         memset(x_str, 0, sizeof(x_str));
     }
 };
-struct Automation {
-    char sensor_id[MAX_ID_LEN];
+struct DeviceAction {
     char device_id[MAX_ID_LEN];
     uint8_t action;
+};
+struct Automation {
+    char sensor_id[MAX_ID_LEN];
+    std::vector<DeviceAction>* actions;
 };
 struct Page {
     void* data;
@@ -236,12 +240,17 @@ struct StorageRequest {
         response_event_id = EventId::NONE;
     }
 };
+struct AutomationTaskParams {
+    char sensor_id[MAX_ID_LEN];
+    uint8_t inform;
+};
 namespace StorageManager {
     // Ponteiros para as configurações globais na PSRAM
     extern GlobalConfig* cfg;
     extern IDConfig* id_cfg;
     extern CredentialConfig* cd_cfg;
     extern WifiScanCache* scanCache;
+    extern std::unordered_map<std::string, Automation*>* automationMap;
     // Funções de utilidade
     bool isBlankOrEmpty(const char* str);
     bool isWifiCacheValid();
@@ -262,9 +271,7 @@ namespace StorageManager {
     size_t getSensorCount();
     std::vector<std::string> getSensorIds();
     // Funções para automação
-    void registerAutomation(Automation* rule);
-    std::vector<Automation*> getAutomationsBySensor(const std::string& sensor_id);
-    esp_err_t removeAutomation(const std::string& sensor_id, const std::string& device_id);
+    const std::vector<DeviceAction>* getAutomationBySensor(const std::string& sensor_id);
     // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
     // Função para enfileirar requisições de armazenamento

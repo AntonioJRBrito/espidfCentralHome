@@ -287,9 +287,8 @@ namespace DeviceManager{
         SensorDTO sensor_dto;
         memset(&sensor_dto,0,sizeof(sensor_dto));
         const Sensor* stored=StorageManager::getSensor(std::to_string(4));
-        if(stored){
-            memcpy(&sensor_dto,stored,sizeof(SensorDTO));
-        } else {
+        if(stored){memcpy(&sensor_dto,stored,sizeof(SensorDTO));}
+        else {
             strncpy(sensor_dto.id,"4",sizeof(sensor_dto.id)-1);
             strncpy(sensor_dto.name,"Sensor da Central",sizeof(sensor_dto.name)-1);
             sensor_dto.type=0;
@@ -298,11 +297,8 @@ namespace DeviceManager{
             sensor_dto.x_str[0]='\0';
         }
         sensor_dto.x_int = new_x_int;
-        if (sensor_dto.x_int) {
-            strncpy(sensor_dto.x_str, "ON", sizeof(sensor_dto.x_str) - 1);
-        } else {
-            strncpy(sensor_dto.x_str, "OFF", sizeof(sensor_dto.x_str) - 1);
-        }
+        if (sensor_dto.x_int) {strncpy(sensor_dto.x_str, "ON", sizeof(sensor_dto.x_str) - 1);}
+        else {strncpy(sensor_dto.x_str, "OFF", sizeof(sensor_dto.x_str) - 1);}
         RequestSave requester;
         memset(&requester,0,sizeof(requester));
         requester.requester=4;
@@ -340,10 +336,8 @@ namespace DeviceManager{
             bool have_stored=false;
             const Sensor* sensor_ptr=nullptr;
             sensor_ptr=StorageManager::getSensor(std::to_string(4));
-            if(sensor_ptr){
-                memcpy(&sensor_dto,sensor_ptr,sizeof(SensorDTO));
-                have_stored=true;
-            }else{
+            if(sensor_ptr){memcpy(&sensor_dto,sensor_ptr,sizeof(SensorDTO));have_stored=true;}
+            else{
                 strncpy(sensor_dto.id,"4",sizeof(sensor_dto.id)-1);
                 strncpy(sensor_dto.name,"Sensor da Central",sizeof(sensor_dto.name)-1);
                 sensor_dto.type=0;
@@ -352,16 +346,20 @@ namespace DeviceManager{
                 sensor_dto.x_str[0]='\0';
             }
             uint8_t new_x_int=(stable_level==0)?1:0;
-            if(have_stored&&sensor_dto.x_int==new_x_int){
-                continue;
-            }
+            if(have_stored&&sensor_dto.x_int==new_x_int){continue;}
             sensor_dto.x_int=new_x_int;
             RequestSave requester;
             requester.requester=4;
             requester.request_int=4;
             requester.resquest_type=RequestTypes::REQUEST_INT;
             StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
-            ESP_LOGI(TAG, "sensor_task: SAVE enfileirado para sensor id=4");
+            ESP_LOGI(TAG, "sensor_task: SAVE enfileirado para sensor id=4 x_int=%u",sensor_dto.x_int);
+            AutomationTaskParams params;
+            const char num_sensor[]="4";
+            memcpy(params.sensor_id,num_sensor,sizeof(num_sensor));
+            params.inform = (uint8_t)sensor_dto.x_int;
+            ESP_LOGI(TAG, "valor4 passado de inform:%u",params.inform);
+            EventBus::post(EventDomain::AUTOMATION, EventId::AUT_DETECTSENSOR, &params, sizeof(AutomationTaskParams));
         }
     }
     // devices

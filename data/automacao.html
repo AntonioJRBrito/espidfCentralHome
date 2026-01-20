@@ -18,6 +18,7 @@
         const index=document.getElementById("divIndex");
         const painel=document.getElementById("divPainel");
         let atuadores={};
+        let sensores={};
         // comportamentos
         document.getElementById('btnCancelar').addEventListener("click",getCancel);
         document.getElementById('btnSalvar').addEventListener('click', sendAuto);
@@ -32,97 +33,77 @@
           const agendaData={};
           progItems.forEach(item=>{
             const sensorId=item.dataset.id;
-            const sensorName=item.dataset.nameSense;
-            const sensorType=item.dataset.typeSense;
-            const actSense=[];
-            const atuadores=item.querySelectorAll('.prog-auto');
-            atuadores.forEach(atuador=>{
+            const actions=[];
+            const progAutos=item.querySelectorAll('.prog-auto');
+            progAutos.forEach(atuador=>{
               const checkbox=atuador.querySelector('input[type="checkbox"]');
               const btn=atuador.querySelector('.auto-dow-btn');
-              const spanAtuador=atuador.querySelector('span.auto-class');
               if(checkbox.checked){
-                actSense.push({
-                  idAct:checkbox.id,
-                  nameAct:spanAtuador.textContent,
-                  statAct:btn.classList.contains('active')?1:0
-                });
+                actions.push({device_id:checkbox.id,action:btn.classList.contains('active')?1:0});
               }
             });
-            agendaData[sensorId]={
-              nameSense:sensorName,
-              typeSense:sensorType,
-              actSense:actSense
-            };
+            if(actions.length>0){agendaData[sensorId]={actions};}
           });
           const jsonData=JSON.stringify(agendaData);
-          if(socket.readyState===WebSocket.OPEN){
-            socket.send("SVM"+jsonData);
-          }
+          if(socket.readyState===WebSocket.OPEN){socket.send("SVM:"+jsonData);}
+          else{alert('Houve uma desconexão da Central, reinicie o processo!');}
           event.preventDefault();
-          window.location.href=`index.html`;
+          window.location.href = `index.html`;
         }
-        function genAutoma(id,sensor){
-          const box=document.createElement('div');
-          box.className='prog-item';
-          box.id=id;
-          box.dataset.id=String(id);
-          box.dataset.nameSense=String(sensor.nameSense);
-          box.dataset.typeSense=String(sensor.typeSense);
-          const title=document.createElement('div');
-          title.className='prog-title';
-          title.textContent=sensor.nameSense.slice(0,18);
-          box.append(title);
-          for(const actDisp of sensor.actSense){
-            const prog=document.createElement('div');
-            prog.className='prog-auto';
-            const label=document.createElement('label');
-            label.className='custom-checkbox';
-            const input=document.createElement('input');
-            input.type='checkbox';
-            input.id=actDisp.idAct;
-            input.checked=actDisp.usedAct===1;
-            const spanL=document.createElement('span');
-            spanL.className='checkmark';
-            label.appendChild(input);
-            label.appendChild(spanL);
-            prog.appendChild(label);
-            const span=document.createElement('span');
-            span.textContent=actDisp.nameAct.slice(0,18);
-            span.className='auto-class';
-            prog.appendChild(span);
-            const btn=document.createElement('button');
-            btn.className='auto-dow-btn';
-            if(actDisp.statAct===1){btn.classList.add('active');}else{btn.classList.remove('active');}
-            btn.addEventListener('click',function(){this.classList.toggle('active');});
-            prog.appendChild(btn);
-            box.append(prog);
+        function genAutoma(){
+          painel.innerHTML='';
+          for(const sensorId in sensores){
+            const sensor=sensores[sensorId];
+            const box=document.createElement('div');
+            box.className='prog-item';
+            box.id=sensorId;
+            box.dataset.id=String(sensorId);
+            const title=document.createElement('div');
+            title.className='prog-title';
+            title.textContent=sensor.name?sensor.name.slice(0,18):sensorId.slice(0,18);
+            box.append(title);
+            const automatedDevices={};
+            for(const actDisp of sensor.actSense){automatedDevices[actDisp.idAct]=actDisp.statAct;}
+            for(const deviceId in atuadores) {
+              const device=atuadores[deviceId];
+              const prog=document.createElement('div');
+              prog.className='prog-auto';
+              const label=document.createElement('label');
+              label.className='custom-checkbox';
+              const input=document.createElement('input');
+              input.type='checkbox';
+              input.id=deviceId;
+              input.checked=automatedDevices[deviceId]!==undefined;
+              const spanL=document.createElement('span');
+              spanL.className='checkmark';
+              label.appendChild(input);
+              label.appendChild(spanL);
+              prog.appendChild(label);
+              const span=document.createElement('span');
+              span.textContent=device.name.slice(0, 18);
+              span.className='auto-class';
+              prog.appendChild(span);
+              const btn=document.createElement('button');
+              btn.className='auto-dow-btn';
+              if(automatedDevices[deviceId]===1){btn.classList.add('active');}
+              btn.addEventListener('click',function(){this.classList.toggle('active');});
+              prog.appendChild(btn);
+              box.append(prog);
+            }
+            painel.appendChild(box);
           }
-          painel.appendChild(box);
         }
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("keep")){
               socket.send("alive");
             }
-            if(event.data.startsWith("sendAutoma")){
-              const automa=JSON.parse(event.data.substring(10));
-              for(const sensorId in automa){
-                const actSense=automa[sensorId].actSense;
-                for(const idAtuador in atuadores){
-                  const existe=actSense.some(acao=>acao.idAct===idAtuador);
-                  if(existe){actSense.find(acao=>acao.idAct===idAtuador).usedAct=1;}
-                  else{actSense.push({idAct:idAtuador,nameAct:atuadores[idAtuador],statAct:0,usedAct:0});}
-                }
-              }
-              painel.innerHTML='';
-              for (const sensorId in automa){genAutoma(sensorId,automa[sensorId]);}
-            }
-            if(event.data.startsWith("sendDisp")){
-              const obj=JSON.parse(event.data.substring(8));
+            if(event.data.startsWith("sendData")){
+              const data=JSON.parse(event.data.substring(8));
               atuadores={};
-              for(let i=1;i<obj.length;i++){
-                atuadores[obj[i][0]]=obj[i][1];
-              }
+              for(const device of data["0"]){atuadores[device[0]]={id:device[0],name:device[1],type:device[2]};}
+              sensores=data["1"];
+              genAutoma();
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };
