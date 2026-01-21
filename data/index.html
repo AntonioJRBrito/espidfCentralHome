@@ -45,8 +45,6 @@
           history.pushState(null,null,window.location.href);
           window.location.href='index.html';
         });
-        // window.addEventListener("unload",getExit);
-        // document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){getExit();}});
         socket.addEventListener('open',function(event){socket.send(host);socket.send("NET");divAguarde.style.display='flex';timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
         // funções
         function updateAuthMode(){
@@ -60,13 +58,9 @@
           if(mail)mail.required=!interno;
         }
         function exit(){
-          // getExit();
           showDiv('divAguarde');
           window.close(); 
         }
-        // function getExit(){
-        //   navigator.sendBeacon("/encerrar/"+fileDescriptor);
-        // }
         function getCancel(){
           event.preventDefault();
           window.location.href=`index.html`;
