@@ -8,9 +8,9 @@ namespace RtcManager {
     void time_sync_notification_cb(struct timeval *tv){
         vTaskDelay(pdMS_TO_TICKS(200));
         ESP_LOGI(TAG,"Notificação de sincronização de tempo: Hora atual %s",get_current_time_str().c_str());
-        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSYNCED);
-        s_time_synced = true;
         CurrentTime currentTime = get_current_time_struct();
+        s_time_synced = true;
+        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSYNCED,&currentTime,sizeof(CurrentTime));
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
     }
     void initialize_sntp() {
@@ -54,6 +54,7 @@ namespace RtcManager {
         currentTime.dayOfWeek = timeinfo.tm_wday;
         currentTime.hour = timeinfo.tm_hour;
         currentTime.minute = timeinfo.tm_min;
+        currentTime.second = timeinfo.tm_sec;
         return currentTime;
     }
     static void onEventNetworkBus(void*,esp_event_base_t base,int32_t id,void* data) {
@@ -65,6 +66,13 @@ namespace RtcManager {
             if (s_time_synced){
                 CurrentTime currentTime = get_current_time_struct();
                 EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
+            }
+            else {EventBus::post(EventDomain::NETWORK, EventId::NET_RTCNOSYNCED);}
+        }
+        if (evt == EventId::NET_RTCSCHREQUEST) {
+            if (s_time_synced){
+                CurrentTime currentTime = get_current_time_struct();
+                EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSCHSUPLY,&currentTime,sizeof(CurrentTime));
             }
             else {EventBus::post(EventDomain::NETWORK, EventId::NET_RTCNOSYNCED);}
         }

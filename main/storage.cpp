@@ -262,6 +262,48 @@ namespace Storage {
         ESP_LOGI(TAG, "Arquivo automation salvo com sucesso");
         loadAutomation();
     }
+    void loadSchedule() {
+        ESP_LOGI(TAG, "Carregando agenda da flash...");
+        if (StorageManager::schedule_json_psram) {
+            heap_caps_free(StorageManager::schedule_json_psram);
+            StorageManager::schedule_json_psram = nullptr;
+            ESP_LOGI(TAG, "JSON anterior desalocado");
+        }
+        FILE* file = fopen("/littlefs/config/schedule", "r");
+        if (!file) {ESP_LOGW(TAG, "Arquivo schedule não encontrado");return;}
+        fseek(file, 0, SEEK_END);
+        size_t file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char* json_buffer = (char*)malloc(file_size + 1);
+        if (!json_buffer) {ESP_LOGE(TAG, "Falha ao alocar buffer JSON");fclose(file);return;}
+        fread(json_buffer, 1, file_size, file);
+        json_buffer[file_size] = '\0';
+        fclose(file);
+        cJSON* root = cJSON_Parse(json_buffer);
+        free(json_buffer);
+        if (!root) {ESP_LOGE(TAG, "Erro ao fazer parse do JSON schedule");return;}
+        size_t json_len = strlen(cJSON_PrintUnformatted(root)) + 1;
+        StorageManager::schedule_json_psram = (char*)heap_caps_malloc(json_len, MALLOC_CAP_SPIRAM);
+        if (!StorageManager::schedule_json_psram) {
+            ESP_LOGE(TAG, "Falha ao alocar PSRAM para schedule JSON");
+            cJSON_Delete(root);
+            return;
+        }
+        strcpy(StorageManager::schedule_json_psram, cJSON_PrintUnformatted(root));
+        cJSON_Delete(root);
+        ESP_LOGI(TAG, "Agenda carregada na PSRAM (%zu bytes)", json_len);
+    }
+
+    void saveSchedule(const char* json_payload) {
+        ESP_LOGI(TAG, "Salvando agenda na flash");
+        FILE* file = fopen("/littlefs/config/schedule", "w");
+        if (!file) {ESP_LOGE(TAG, "Erro ao abrir arquivo schedule para escrita");return;}
+        size_t written = fwrite(json_payload, 1, strlen(json_payload), file);
+        fclose(file);
+        if (written != strlen(json_payload)) {ESP_LOGE(TAG, "Erro ao escrever arquivo schedule");return;}
+        ESP_LOGI(TAG, "Arquivo schedule salvo com sucesso");
+        loadSchedule();
+    }
     esp_err_t init() {
         ESP_LOGI(TAG, "Montando LittleFS...");
         esp_vfs_littlefs_conf_t conf = {"/littlefs","littlefs",nullptr,false,false,false,false};
@@ -288,6 +330,7 @@ namespace Storage {
         loadAllDevices();
         loadAllSensors();
         loadAutomation();
+        loadSchedule();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
         return ESP_OK;
     }

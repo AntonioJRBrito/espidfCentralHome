@@ -22,6 +22,7 @@
         const socket=new WebSocket(`ws://${location.host}/ws`);
         const labelwifi=document.getElementById('labelNomewifi');
         const host="HOST:"+window.location.hostname;
+        const divAguarde=document.getElementById("divAguarde");
         // comportamentos
         document.getElementById('imgLogin').addEventListener('click',showPass);
         document.getElementById('imgSenha').addEventListener('click',showPass);
@@ -39,9 +40,14 @@
         document.getElementById('dTipo3').addEventListener("change",showTime3);
         document.getElementById('authInterno').addEventListener('change',updateAuthMode);
         document.getElementById('authCustom').addEventListener('change',updateAuthMode);
+        history.pushState(null,null,window.location.href);
+        window.addEventListener('popstate',function(){
+          history.pushState(null,null,window.location.href);
+          window.location.href='index.html';
+        });
         // window.addEventListener("unload",getExit);
         // document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){getExit();}});
-        socket.addEventListener('open',function(event){socket.send(host);socket.send("NET");timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
+        socket.addEventListener('open',function(event){socket.send(host);socket.send("NET");divAguarde.style.display='flex';timeoutId=setTimeout(()=>{showMessage('erroCom');},20000);});
         // funções
         function updateAuthMode(){
           const interno=document.getElementById('authInterno').checked;
@@ -123,6 +129,7 @@
         socket.onmessage=function(event){
           try{
             if(event.data.startsWith("listNet")){
+              divAguarde.style.display='none';
               clearTimeout(timeoutId);
               const msg=event.data.substring(7);
               if(msg.trim().startsWith('<option')){
@@ -149,6 +156,9 @@
             if(event.data.startsWith("credentialOk")){
               clearTimeout(timeoutId);
               showMessage('sucesso');
+            }
+            if(event.data.startsWith("notConn")){
+              showDiv('divIndex');
             }
             if(event.data.startsWith("fd")){
               const msg=event.data.substring(2);
@@ -191,7 +201,8 @@
                 if(data.useUserToken==="1"){document.getElementById('authCustom').checked=true;}
                 else{document.getElementById('authInterno').checked=true;}
                 updateAuthMode();
-                if(data.conexao==="con"){showDiv('divLogin');}else{showDiv('divIndex');}
+                // if(data.conexao!=="con"){showDiv('divLogin');}else{showDiv('divIndex');}
+                if(data.conexao!=="con"){showDiv('divIndex');}else{labelwifi.style.color = "green";}
                 showTime1();
                 showTime2();
                 showTime3();
@@ -208,7 +219,7 @@
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };
         // inicialização
-        showDiv('divAguarde');
+        showDiv('divLogin');
         document.getElementById("iconDispositivo").innerHTML=icons["settings"];
         document.getElementById("iconSave").innerHTML=icons["save"];
         document.getElementById("iconeAguarde").innerHTML=icons["refresh_cw"];
@@ -254,6 +265,7 @@
       </form>
     </div>
     <div id="divIndex" class="util">
+      <div class="form-group" id="divAguarde"><div id="iconeAguarde"></div></div>
       <form name="formWIFI" id="formWIFI" action="/SET/wifi" method="GET">
         <div class="form-group">
           <label for="nomewifi" id="labelNomewifi">Rede WiFi:</label>
@@ -363,7 +375,6 @@
       </form>
     </div>
     <div class="util" id="divAviso"><br><br><h3>Aviso Importante</h3><br><div id="divResultado" class="message"></div></div>
-    <div class="util" id="divAguarde"><div id="iconeAguarde"></div></div>
     <div class="rodape" id="divRodape"><img src="/img/logomarca" width="40px" height="40px"></div>
   </body>
 </html>

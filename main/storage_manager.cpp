@@ -9,7 +9,8 @@ namespace StorageManager {
     IDConfig* id_cfg = nullptr;
     CredentialConfig* cd_cfg = nullptr;
     WifiScanCache* scanCache = nullptr;
-    // Variáveis estáticas internas do módulo
+    char* schedule_json_psram = nullptr;
+    // Variáveis estáticas do módulo
     static QueueHandle_t s_storage_queue = nullptr;
     static SemaphoreHandle_t s_flash_mutex = nullptr;
     static std::unordered_map<std::string, Page*> pageMap;
@@ -270,9 +271,17 @@ namespace StorageManager {
                                     break;
                                 }
                                 case StorageStructType::SCHEDULE_DATA: {
-                                    ESP_LOGI(TAG, "Salvando SCHEDULE_DATA (TODO)");
-                                    // TODO: Implementar lógica para SCHEDULE_DATA
-                                    err = ESP_ERR_NOT_SUPPORTED;
+                                    ESP_LOGI(TAG, "Salvando SCHEDULE_DATA");
+                                    if(request.data_ptr && request.data_len > 0){
+                                        char* json_str = (char*)malloc(request.data_len + 1);
+                                        if (!json_str) {ESP_LOGE(TAG, "Falha ao alocar buffer para JSON");break;}
+                                        memcpy(json_str, request.data_ptr, request.data_len);
+                                        json_str[request.data_len] = '\0';
+                                        Storage::saveSchedule(json_str);
+                                        free(json_str);
+                                        ESP_LOGI(TAG, "Agenda atualizada → reiniciando ciclo de agendamento");
+                                        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSCHREQUEST);
+                                    }else{ESP_LOGE(TAG, "SCHEDULE_DATA: dados inválidos");}
                                     break;
                                 }
                             }

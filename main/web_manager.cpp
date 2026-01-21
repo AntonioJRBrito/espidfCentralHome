@@ -68,6 +68,7 @@ namespace WebManager {
                     uint32_t received_token = strtoul(token_value, nullptr, 10);
                     ESP_LOGI(TAG, "Token recebido: %u, esperado: %u", received_token, current_token);
                     if(received_token != current_token) {ESP_LOGW(TAG, "Token inválido");uri = "index.html";}
+                    current_token = 0;
                 } else {ESP_LOGW(TAG, "Parâmetro 'token' não encontrado");uri = "index.html";}
             } else {ESP_LOGW(TAG, "Token ausente");uri = "index.html";}
         }

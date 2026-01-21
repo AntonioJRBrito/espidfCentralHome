@@ -24,4 +24,6 @@ namespace Storage {
     esp_err_t deleteSensorFile(const std::string& id);
     void loadAutomation();
     void saveAutomation(const char* json_payload);
+    void loadSchedule();
+    void saveSchedule(const char* json_payload);
 }

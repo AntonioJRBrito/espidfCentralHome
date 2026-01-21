@@ -64,18 +64,14 @@
         }
         function sendSchd(){
           const progItems=document.querySelectorAll('#divPainel .prog-item');
-          const agendaData=[];
-          progItems.forEach(item=>{
-            agendaData.push([
-              item.dataset.dow,
-              item.dataset.mod,
-              item.dataset.id,
-              item.dataset.status,
-              item.dataset.name
-            ]);
+          const agendaData={};
+          let sequence=1;
+          progItems.forEach(item=>{agendaData[String(sequence)] = 
+            {dow:parseInt(item.dataset.dow),mod:parseInt(item.dataset.mod),id:item.dataset.id,action:parseInt(item.dataset.status)};
+            sequence++;
           });
-          const jsonData=JSON.stringify([agendaData]);
-          if(socket.readyState===WebSocket.OPEN){socket.send("SVA"+jsonData);}
+          const jsonData=JSON.stringify(agendaData);
+          if(socket.readyState===WebSocket.OPEN){socket.send("SVA:"+jsonData);}
           event.preventDefault();
           window.location.href=`index.html`;
         }
@@ -135,31 +131,33 @@
         }
         socket.onmessage=function(event){
           try{
-            const obj=JSON.parse(event.data);
-            const tipoMsg=obj[0][0];
             if(event.data.startsWith("keep")){
               socket.send("alive");
             }
-            if(tipoMsg==="list"){
-              painel.innerHTML="";
-              for(let i=1;i<obj.length;i++){
-                const disp=obj[i];
-                const newDiv=genProg({agenda:disp[0],dow:disp[1],mod:disp[2],id:disp[3],status:disp[4],name:disp[5]});
-                painel.appendChild(newDiv);
+            if(event.data.startsWith("sendSched:")){
+              const data=JSON.parse(event.data.substring(10));
+              console.log(data);
+              const deviceMap={};
+              if(data["0"]&&Array.isArray(data["0"])){data["0"].forEach(disp=>{deviceMap[disp[0]]=disp[1];});}
+              if(data["0"]&&Array.isArray(data["0"])){
+                const select=document.getElementById('newDisp');
+                select.innerHTML='';
+                data["0"].forEach(disp=>{
+                  const option=document.createElement('option');
+                  option.value=disp[0];
+                  option.textContent=disp[1];
+                  select.appendChild(option);
+                });
+                if(select.options.length>0) select.selectedIndex=0;
+                avalNewPnl();
               }
-            }
-            if(tipoMsg==="disp"){
-              const select=document.getElementById('newDisp');
-              select.innerHTML='';
-              for(let i=1;i<obj.length;i++){
-                const disp=obj[i];
-                const option=document.createElement('option');
-                option.value=disp[0];
-                option.textContent=disp[1];
-                select.appendChild(option);
+              if(data["1"]&&typeof data["1"]==='object'){
+                painel.innerHTML='';
+                Object.values(data["1"]).forEach(agenda=>{
+                  const newDiv=genProg({agenda:0,dow:agenda.dow,mod:agenda.mod,id:agenda.id,status:agenda.action,name:deviceMap[agenda.id]||agenda.id});
+                  painel.appendChild(newDiv);
+                });
               }
-              if(select.options.length>0){select.selectedIndex=0;}
-              avalNewPnl();
             }
           }catch(e){console.error("Erro ao processar mensagem WS:",e);}
         };

@@ -225,6 +225,7 @@ namespace SocketManager {
             EventBus::post(EventDomain::NETWORK, EventId::NET_LISTQRY, &fd, sizeof(int));
             std::string response_msg = "fd" + std::to_string(fd);
             sendToClient(fd,response_msg.c_str());
+            if(!StorageManager::scanCache->is_sta_connected){response_msg="notConn";sendToClient(fd,response_msg.c_str());}
         }
         else if (message == "INFO") {
             ESP_LOGI(TAG, "Comando INFO recebido para fd=%d", fd);
@@ -373,6 +374,42 @@ namespace SocketManager {
             free(jsonStr);
             sendToClient(fd, result.c_str());
         }
+        else if (message == "LDA") {
+            ESP_LOGI(TAG, "Comando LDA recebido para fd=%d", fd);
+            cJSON *root = cJSON_CreateObject();
+            cJSON *devices_array = cJSON_CreateArray();
+            std::vector<std::string> ids = StorageManager::getDeviceIds();
+            for (const auto &id : ids) {
+                const Device* device = StorageManager::getDevice(id);
+                if (!device) continue;
+                if (device->type < 1 || device->type > 3) continue;
+                cJSON *device_item = cJSON_CreateArray();
+                cJSON_AddItemToArray(device_item, cJSON_CreateString(device->id));
+                cJSON_AddItemToArray(device_item, cJSON_CreateString(device->name));
+                cJSON_AddItemToArray(device_item, cJSON_CreateNumber(device->type));
+                cJSON_AddItemToArray(devices_array, device_item);
+            }
+            cJSON_AddItemToObject(root, "0", devices_array);
+            if (StorageManager::schedule_json_psram) {
+                cJSON *schedule = cJSON_Parse(StorageManager::schedule_json_psram);
+                if (schedule) {cJSON_AddItemToObject(root, "1", schedule);}
+                else {
+                    ESP_LOGW(TAG, "Falha ao fazer parse do JSON da agenda");
+                    cJSON *empty_schedule = cJSON_CreateObject();
+                    cJSON_AddItemToObject(root, "1", empty_schedule);
+                }
+            } else {
+                ESP_LOGW(TAG, "schedule_json_psram não alocado");
+                cJSON *empty_schedule = cJSON_CreateObject();
+                cJSON_AddItemToObject(root, "1", empty_schedule);
+            }
+            char *jsonStr = cJSON_PrintUnformatted(root);
+            std::string result = "sendSched:";
+            result += jsonStr;
+            cJSON_Delete(root);
+            free(jsonStr);
+            sendToClient(fd, result.c_str());
+        }
         else if (strncmp(message.c_str(),"SVM:",4) == 0) {
             std::string payload_str = message.substr(4);
             RequestSave requester;
@@ -381,6 +418,15 @@ namespace SocketManager {
             esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::AUTOMA_DATA,payload_str.c_str(),payload_str.length(),requester);
             if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de AUTOMA_DATA");}
             else {ESP_LOGI(TAG, "Requisição AUTOMA_DATA enfileirada com sucesso");}
+        }
+        else if (strncmp(message.c_str(),"SVA:",4) == 0) {
+            std::string payload_str = message.substr(4);
+            RequestSave requester;
+            requester.resquest_type=RequestTypes::REQUEST_NONE;
+            requester.requester=-1;
+            esp_err_t ret = StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SCHEDULE_DATA,payload_str.c_str(),payload_str.length(),requester);
+            if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de SCHEDULE_DATA");}
+            else {ESP_LOGI(TAG, "Requisição SCHEDULE_DATA enfileirada com sucesso");}
         }
         else if (strncmp(message.c_str(),"INT:",4) == 0) {
             std::string message_wop = message.substr(4);
@@ -543,6 +589,9 @@ namespace SocketManager {
         if (evt == EventId::STO_CREDENTIALSAVED) {
             response = "credentialOk";
             ret = sendToClient(client_fd,response);
+            vTaskDelay(3000 / portTICK_PERIOD_MS);
+            ESP_LOGI(TAG, "Reiniciando ESP...");
+            esp_restart();
         }
         if (evt == EventId::STO_DEVICESAVED) {
             RequestSave requester;

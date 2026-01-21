@@ -192,6 +192,7 @@ struct CurrentTime {
     int dayOfWeek; // 0 = Domingo
     int hour;
     int minute;
+    int second;
     CurrentTime():dayOfWeek(0),hour(0),minute(0) {}
 };
 struct PublishBrokerData {
@@ -251,6 +252,7 @@ namespace StorageManager {
     extern CredentialConfig* cd_cfg;
     extern WifiScanCache* scanCache;
     extern std::unordered_map<std::string, Automation*>* automationMap;
+    extern char* schedule_json_psram;
     // Funções de utilidade
     bool isBlankOrEmpty(const char* str);
     bool isWifiCacheValid();
