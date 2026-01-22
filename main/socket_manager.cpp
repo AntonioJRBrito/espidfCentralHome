@@ -214,12 +214,12 @@ namespace SocketManager {
         std::string message((char*)buf);
         int fd = httpd_req_to_sockfd(req);
         if (strncmp(message.c_str(),"HOST:",5) == 0) {
+            ESP_LOGI(TAG, "Comando HOST recebido para fd=%d", fd);
             const char* ipH=message.c_str()+5;
             if(!ipH){ESP_LOGI(TAG,"Sem ipH");}
-            else{
-                if(strcmp(ipH,StorageManager::id_cfg->ip)==0){ESP_LOGI(TAG,"ip: %s",message.c_str());}
-                else{set_client_from_ap(fd,true);sendToClient(fd,"navegAP");}
-            }
+            else if(strcmp(ipH,"automacao.local")==0){ESP_LOGI(TAG,"ip: %s",message.c_str());}
+            else if(strcmp(ipH,StorageManager::id_cfg->ip)==0){ESP_LOGI(TAG,"ip: %s",message.c_str());}
+            else{set_client_from_ap(fd,true);sendToClient(fd,"navegAP");}
         }else if (message == "NET") {
             ESP_LOGI(TAG, "Comando NET recebido, solicitando lista WiFi para fd=%d", fd);
             EventBus::post(EventDomain::NETWORK, EventId::NET_LISTQRY, &fd, sizeof(int));

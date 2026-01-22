@@ -36,6 +36,7 @@ idf_component_register(
         esp_http_client
         app_update
         esp_partition
+
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

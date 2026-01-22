@@ -234,6 +234,13 @@ namespace WebManager {
         ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
         return ESP_OK;
     }
+    // --- Handler para o health do ESP ---
+    static esp_err_t health_check_handler(httpd_req_t* req) {
+        ESP_LOGI(TAG, "GET health");
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_sendstr(req, "ok");
+        return ESP_OK;
+    }
     // --- Registrador de handlers ---
     static void registerUriHandler(const char* description, http_method method, esp_err_t (*handler)(httpd_req_t *r)) {
         if (uri_count >= 30) {
@@ -259,12 +266,17 @@ namespace WebManager {
         config.server_port = 80;
         config.lru_purge_enable = true;
         config.uri_match_fn = httpd_uri_match_wildcard;
-        config.max_uri_handlers = 30;
+        config.max_uri_handlers = 40;
         if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
         else{ESP_LOGI(TAG, "Servidor HTTP executando");}
-        // 1. Rotas estáticas principais (HTML/CSS/JS/IMG)
+        // 1. Rotas estáticas principais (HTML/JSON/CSS/JS/IMG)
+        // 1.PWA
         registerUriHandler("/",HTTP_GET,root_handler);
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/manifest.json",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/health",HTTP_GET,health_check_handler);
+        // 1.WEB
+        registerUriHandler("/app.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/agenda.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/automacao.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/atualizar.html*",HTTP_GET,serve_static_file_handler);

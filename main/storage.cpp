@@ -313,6 +313,9 @@ namespace Storage {
         loadGlobalConfigFile();
         loadCredentialConfigFile();
         loadFileToPsram("/littlefs/index.html","index.html","text/html");
+        loadFileToPsram("/littlefs/manifest.json","manifest.json","application/json");
+        loadFileToPsram("/littlefs/js/health-check.js","js/health-check.js","application/javascript");
+        loadFileToPsram("/littlefs/app.html","app.html","text/html");
         loadFileToPsram("/littlefs/agenda.html","agenda.html","text/html");
         loadFileToPsram("/littlefs/automacao.html","automacao.html","text/html");
         loadFileToPsram("/littlefs/atualizar.html","atualizar.html","text/html");

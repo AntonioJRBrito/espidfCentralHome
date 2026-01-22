@@ -375,6 +375,20 @@ namespace NetManager
         // --- Inicia o Wi-Fi ---
         ESP_ERROR_CHECK(esp_wifi_start());
         ESP_LOGI(TAG, "Access Point iniciado: SSID=%s, canal=%d", ap_cfg.ap.ssid, ap_cfg.ap.channel);
+        esp_err_t mdns_ret = initMDNS();
+        if (mdns_ret != ESP_OK) {ESP_LOGW(TAG, "mDNS não inicializado, continuando sem mDNS");}
+        return ESP_OK;
+    }
+    static esp_err_t initMDNS() {
+        ESP_LOGI(TAG, "Inicializando mDNS...");
+        esp_err_t err = mdns_init();
+        if (err != ESP_OK) {ESP_LOGE(TAG, "Falha ao inicializar mDNS: %s", esp_err_to_name(err));return err;}
+        err = mdns_hostname_set("automacao");
+        if (err != ESP_OK) {ESP_LOGE(TAG, "Falha ao definir hostname mDNS: %s", esp_err_to_name(err));return err;}
+        err = mdns_instance_name_set("Automação - Central");
+        if (err != ESP_OK) {ESP_LOGE(TAG, "Falha ao definir instância mDNS: %s", esp_err_to_name(err));return err;}
+        mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+        ESP_LOGI(TAG, "✓ mDNS inicializado: automacao.local");
         return ESP_OK;
     }
     esp_err_t init()
