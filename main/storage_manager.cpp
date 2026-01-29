@@ -159,17 +159,17 @@ namespace StorageManager {
                 }
                 RequestSave requester;
                 if(parts[0]=="INT"){
-                    requester.requester = std::stoi(parts[1]);
-                    requester.request_int = std::stoi(parts[1]);
+                    requester.requester=std::stoi(parts[1]);
+                    requester.request_int=std::stoi(parts[1]);
                     requester.resquest_type=RequestTypes::REQUEST_INT;
                     StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
                 }else{
-                    std::string payload = (parts[0] == "CMD") ? "ACT:" : "BRG:";
-                    payload += actDev;
-                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
+                    std::string payload=(parts[0]=="CMD")?"ACT:":"BRG:";
+                    payload+=actDev;
+                    PublishBrokerData* pub_data=(PublishBrokerData*)malloc(sizeof(PublishBrokerData));
                     strcpy(pub_data->device_id,parts[1].c_str());
                     strcpy(pub_data->payload,payload.c_str());
-                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
+                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST,pub_data,sizeof(PublishBrokerData));
                 }
             }
         }
