@@ -53,6 +53,11 @@ namespace StorageManager {
         }
         return tokens;
     }
+    bool isPassValid(const std::string& password){
+        if(strcmp(StorageManager::cfg->token_flag,"0")==0){return (password==StorageManager::cd_cfg->password);}
+        else if(strcmp(StorageManager::cfg->token_flag,"1")==0){return (password==StorageManager::cfg->token_password);}
+        return false;
+    }
     // --- Gerenciamento de Páginas Web ---
     void registerPage(const char* uri, Page* p) {
         pageMap[uri] = p;
@@ -91,6 +96,83 @@ namespace StorageManager {
         ids.reserve(deviceMap->size());
         for (const auto& pair : *deviceMap) {ids.push_back(pair.first);}
         return ids;
+    }
+    std::string buildJSONDevices(){
+        ESP_LOGI(TAG, "Construindo lista de dispositivos");
+        cJSON *root = cJSON_CreateArray();
+        std::vector<std::string> ids = StorageManager::getDeviceIds();
+        for (const auto &id : ids) {
+            const Device* device = StorageManager::getDevice(id);
+            if (!device) continue;
+            cJSON *obj = cJSON_CreateObject();
+            cJSON_AddStringToObject(obj, "id", device->id);
+            cJSON_AddStringToObject(obj, "name", device->name);
+            cJSON_AddNumberToObject(obj, "type", device->type);
+            cJSON_AddNumberToObject(obj, "status", device->status);
+            cJSON_AddNumberToObject(obj, "time", device->time);
+            cJSON_AddItemToArray(root, obj);
+        }
+        char *jsonStr = cJSON_PrintUnformatted(root);
+        std::string result = "";
+        result += jsonStr;
+        cJSON_Delete(root);
+        free(jsonStr);
+        return result;
+    }
+    std::string buildJSONDevice(const void* data){
+        if(!data){return "";}
+        RequestSave requester;
+        std::string requestId;
+        memcpy(&requester,data,sizeof(RequestSave));
+        if(requester.resquest_type==RequestTypes::REQUEST_INT){requestId = std::to_string(requester.request_int);}
+        if(requester.resquest_type==RequestTypes::REQUEST_CHAR){requestId = requester.request_char;}
+        std::string result = "";
+        const Device* device = StorageManager::getDevice(requestId);
+        if (device){
+            cJSON *root = cJSON_CreateArray();
+            cJSON *obj = cJSON_CreateObject();
+            cJSON_AddStringToObject(obj,"id",device->id);
+            cJSON_AddStringToObject(obj,"name",device->name);
+            cJSON_AddNumberToObject(obj,"type",device->type);
+            cJSON_AddNumberToObject(obj,"status",device->status);
+            cJSON_AddNumberToObject(obj,"time",device->time);
+            cJSON_AddItemToArray(root,obj);
+            char *jsonStr = cJSON_PrintUnformatted(root);
+            result += jsonStr;
+            cJSON_Delete(root);
+            free(jsonStr);
+        }
+        return result;
+    }
+    void actDeviceByPage(std::string message){
+        std::vector<std::string> parts = StorageManager::splitString(message,':');
+        if(parts.size()==4){
+            const Device* device_ptr = StorageManager::getDevice(parts[1]);
+            if (device_ptr) {
+                DeviceDTO device_dto;
+                std::string actDev;
+                memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+                switch (device_dto.type){
+                    case 1:device_dto.status=1-device_dto.status;actDev=std::to_string(device_dto.status);break;
+                    case 2:case 3:device_dto.status=1;actDev="1";break;
+                    case 4:actDev=parts[2];break;
+                }
+                RequestSave requester;
+                if(parts[0]=="INT"){
+                    requester.requester = std::stoi(parts[1]);
+                    requester.request_int = std::stoi(parts[1]);
+                    requester.resquest_type=RequestTypes::REQUEST_INT;
+                    StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                }else{
+                    std::string payload = (parts[0] == "CMD") ? "ACT:" : "BRG:";
+                    payload += actDev;
+                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
+                    strcpy(pub_data->device_id,parts[1].c_str());
+                    strcpy(pub_data->payload,payload.c_str());
+                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
+                }
+            }
+        }
     }
     // --- Gerenciamento de Sensores ---
     void registerSensor(Sensor* sensor) {

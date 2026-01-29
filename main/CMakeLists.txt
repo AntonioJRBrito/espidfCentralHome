@@ -29,6 +29,7 @@ idf_component_register(
         nvs_flash
         esp_wifi
         esp_http_server
+        esp_https_server
         esp_eth
         cjson
         driver
@@ -36,7 +37,6 @@ idf_component_register(
         esp_http_client
         app_update
         esp_partition
-
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

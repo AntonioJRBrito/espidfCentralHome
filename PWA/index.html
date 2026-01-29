@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IGRA - Carregando...</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            text-align: center;
+            max-width: 400px;
+        }
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        .status {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #ccc;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #444;
+            border-top: 4px solid #0d6efd;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error {
+            color: #ff6f61;
+            font-size: 0.9rem;
+            margin-top: 20px;
+            display: none;
+        }
+        #install-pwa-btn {
+            display: none;
+            margin-top: 30px;
+            padding: 12px 24px;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+        #install-pwa-btn:hover {
+            background: #0b5ed7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">⚡</div>
+        <div class="status" id="status">Testando conexão...</div>
+        <div class="spinner" id="spinner"></div>
+        <div class="error" id="error"></div>
+        <button id="install-pwa-btn" onclick="installPWA()">
+            📱 Instalar no Celular
+        </button>
+    </div>
+
+    <script src="/js/pwa-installer.js"></script>
+    <script src="/js/health-check.js"></script>
+    <script>
+        // Registra o Service Worker IMEDIATAMENTE
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('✓ Service Worker registrado:', registration);
+                    })
+                    .catch((error) => {
+                        console.warn('✗ Falha ao registrar Service Worker:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

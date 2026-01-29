@@ -49,8 +49,12 @@ namespace SocketManager {
         } else {
             cJSON_AddStringToObject(root, "conexao", "dis");
         }
+        ESP_LOGI(TAG,"rede conecta cd_cfg->ssid:%s",StorageManager::cd_cfg->ssid);
         const char* ssid_value = (strlen(StorageManager::cd_cfg->ssid) == 0) ? "" : StorageManager::cd_cfg->ssid;
+        const char* pass_value = (strlen(StorageManager::cd_cfg->password) == 0) ? "" : StorageManager::cd_cfg->password;
+        ESP_LOGI(TAG,"rede conecta ssid_value:%s",StorageManager::cd_cfg->ssid);
         cJSON_AddStringToObject(root, "ssid", ssid_value);
+        cJSON_AddStringToObject(root, "pass", pass_value);
         const char* json_string = cJSON_PrintUnformatted(root);
         if(!json_string){ESP_LOGE(TAG, "Falha ao serializar objeto cJSON");cJSON_Delete(root);return;}
         std::string full_message = "listInfo" + std::string(json_string);
@@ -226,6 +230,9 @@ namespace SocketManager {
             std::string response_msg = "fd" + std::to_string(fd);
             sendToClient(fd,response_msg.c_str());
             if(!StorageManager::scanCache->is_sta_connected){response_msg="notConn";sendToClient(fd,response_msg.c_str());}
+            std::string MACid = StorageManager::id_cfg->id;
+            response_msg = "PWA:" + MACid;
+            sendToClient(fd,response_msg.c_str());
         }
         else if (message == "INFO") {
             ESP_LOGI(TAG, "Comando INFO recebido para fd=%d", fd);
@@ -259,11 +266,12 @@ namespace SocketManager {
                 GlobalConfigDTO config_dto;
                 cJSON* cn = cJSON_GetObjectItem(root, "cNome");
                 cJSON* tf = cJSON_GetObjectItem(root, "userChoice");
-                cJSON* ti = cJSON_GetObjectItem(root, "userTk");
+                // cJSON* ti = cJSON_GetObjectItem(root, "userTk");
                 cJSON* tp = cJSON_GetObjectItem(root, "inpPassTk");
                 if (cn) strncpy(config_dto.central_name,cn->valuestring,sizeof(config_dto.central_name)-1);
                 if (tf) strncpy(config_dto.token_flag,tf->valuestring,sizeof(config_dto.token_flag)-1);
-                if (ti) strncpy(config_dto.token_id,ti->valuestring,sizeof(config_dto.token_id)-1);
+                // if (ti) 
+                strncpy(config_dto.token_id,"notoken",sizeof(config_dto.token_id)-1);
                 if (tp) strncpy(config_dto.token_password,tp->valuestring,sizeof(config_dto.token_password)-1);
                 config_dto.central_name[sizeof(config_dto.central_name)-1]='\0';
                 config_dto.token_id[sizeof(config_dto.token_id)-1]='\0';
@@ -310,24 +318,8 @@ namespace SocketManager {
         }
         else if (message == "LDD") {
             ESP_LOGI(TAG, "Comando LDD recebido para fd=%d", fd);
-            cJSON *root = cJSON_CreateArray();
-            std::vector<std::string> ids = StorageManager::getDeviceIds();
-            for (const auto &id : ids){
-                const Device* device = StorageManager::getDevice(id);
-                if (!device) continue;
-                cJSON *obj = cJSON_CreateObject();
-                cJSON_AddStringToObject(obj,"id",device->id);
-                cJSON_AddStringToObject(obj,"name",device->name);
-                cJSON_AddNumberToObject(obj,"type",device->type);
-                cJSON_AddNumberToObject(obj,"status",device->status);
-                cJSON_AddNumberToObject(obj,"time",device->time);
-                cJSON_AddItemToArray(root,obj);
-            }
-            char *jsonStr = cJSON_PrintUnformatted(root);
             std::string result = "ctnew";
-            result += jsonStr;
-            cJSON_Delete(root);
-            free(jsonStr);
+            result += StorageManager::buildJSONDevices();
             sendToClient(fd,result.c_str());
         }
         else if (message == "LDM") {
@@ -428,60 +420,8 @@ namespace SocketManager {
             if (ret != ESP_OK) {ESP_LOGE(TAG, "Falha ao enfileirar requisição de SCHEDULE_DATA");}
             else {ESP_LOGI(TAG, "Requisição SCHEDULE_DATA enfileirada com sucesso");}
         }
-        else if (strncmp(message.c_str(),"INT:",4) == 0) {
-            std::string message_wop = message.substr(4);
-            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
-            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
-            else{
-                const Device* device_ptr = StorageManager::getDevice(parts[0]);
-                if (device_ptr) {
-                    DeviceDTO device_dto;
-                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
-                    if(device_dto.type==1){device_dto.status=1-device_dto.status;}
-                    else if(device_dto.type<=4){device_dto.status=1;}
-                    RequestSave requester;
-                    requester.requester = std::stoi(parts[0]);
-                    requester.request_int = std::stoi(parts[0]);
-                    requester.resquest_type=RequestTypes::REQUEST_INT;
-                    StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
-                }
-            }
-        }
-        else if (strncmp(message.c_str(),"CMD:",4) == 0) {
-            std::string message_wop = message.substr(4);
-            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
-            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
-            else{
-                const Device* device_ptr = StorageManager::getDevice(parts[0]);
-                if (device_ptr) {
-                    DeviceDTO device_dto;
-                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
-                    if(device_dto.type==1){device_dto.status=1-device_dto.status;}
-                    else if(device_dto.type<=4){device_dto.status=1;}
-                    std::string payload = "ACT:"+parts[1];
-                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
-                    strcpy(pub_data->device_id,parts[0].c_str());
-                    strcpy(pub_data->payload,payload.c_str());
-                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
-                }
-            }
-        }
-        else if (strncmp(message.c_str(),"BRG:",4) == 0) {
-            std::string message_wop = message.substr(4);
-            std::vector<std::string> parts = StorageManager::splitString(message_wop,':');
-            if(parts.size()!=3){ESP_LOGE(TAG,"INT inválido: %s. Recebido %zu partes.",message_wop.c_str(),parts.size());}
-            else{
-                const Device* device_ptr = StorageManager::getDevice(parts[0]);
-                if (device_ptr) {
-                    DeviceDTO device_dto;
-                    memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
-                    std::string payload = "BRG:"+parts[1];
-                    PublishBrokerData* pub_data = (PublishBrokerData*)malloc(sizeof(PublishBrokerData));
-                    strcpy(pub_data->device_id,parts[0].c_str());
-                    strcpy(pub_data->payload,payload.c_str());
-                    EventBus::post(EventDomain::BROKER, EventId::BRK_PUBLISHREQUEST, pub_data, sizeof(PublishBrokerData));
-                }
-            }
+        else if((strncmp(message.c_str(),"INT:",4)==0)||(strncmp(message.c_str(),"CMD:",4)==0)||(strncmp(message.c_str(),"BRG:",4)==0)){
+            StorageManager::actDeviceByPage(message);
         }
         else {ESP_LOGW(TAG, "Comando desconhecido: %s", message.c_str());}
         free(buf);
@@ -582,38 +522,18 @@ namespace SocketManager {
         if(data){memcpy(&client_fd,data,sizeof(int));}
         esp_err_t ret = ESP_OK;
         const char* response;
-        if (evt == EventId::STO_CONFIGSAVED) {
-            response = "configOk";
-            ret = sendToClient(client_fd,response);
-        }
-        if (evt == EventId::STO_CREDENTIALSAVED) {
+        if(evt==EventId::STO_CONFIGSAVED){response="configOk";ret=sendToClient(client_fd,response);}
+        if(evt==EventId::STO_CREDENTIALSAVED){
             response = "credentialOk";
             ret = sendToClient(client_fd,response);
             vTaskDelay(3000 / portTICK_PERIOD_MS);
             ESP_LOGI(TAG, "Reiniciando ESP...");
             esp_restart();
         }
-        if (evt == EventId::STO_DEVICESAVED) {
-            RequestSave requester;
-            std::string requestId;
-            memcpy(&requester,data,sizeof(RequestSave));
-            if(requester.resquest_type==RequestTypes::REQUEST_INT){requestId = std::to_string(requester.request_int);}
-            if(requester.resquest_type==RequestTypes::REQUEST_CHAR){requestId = requester.request_char;}
-            const Device* device = StorageManager::getDevice(requestId);
-            if (device){
-                cJSON *root = cJSON_CreateArray();
-                cJSON *obj = cJSON_CreateObject();
-                cJSON_AddStringToObject(obj,"id",device->id);
-                cJSON_AddStringToObject(obj,"name",device->name);
-                cJSON_AddNumberToObject(obj,"type",device->type);
-                cJSON_AddNumberToObject(obj,"status",device->status);
-                cJSON_AddNumberToObject(obj,"time",device->time);
-                cJSON_AddItemToArray(root,obj);
-                char *jsonStr = cJSON_PrintUnformatted(root);
-                std::string result = "ctup";
-                result += jsonStr;
-                cJSON_Delete(root);
-                free(jsonStr);
+        if (evt==EventId::STO_DEVICESAVED){
+            std::string json = StorageManager::buildJSONDevice(data);
+            if(!json.empty()){
+                std::string result = "ctup"+json;
                 broadcastToAllClients(result.c_str());
             }
         }

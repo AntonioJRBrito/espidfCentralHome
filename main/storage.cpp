@@ -75,11 +75,11 @@ namespace Storage {
             line[strcspn(line, "\r\n")] = 0;
             switch (index) {
                 case 0:strncpy(dev->name, line, sizeof(dev->name) - 1);dev->name[sizeof(dev->name) - 1] = '\0';break;
-                case 1:dev->type = static_cast<uint8_t>(atoi(line));break;
-                case 2:dev->time = static_cast<uint16_t>(atoi(line));break;
-                case 3:dev->status = static_cast<uint8_t>(atoi(line));break;
+                case 1:if(!StorageManager::atribuirInt(dev->type,line)){ESP_LOGI(TAG,"type inválido");fclose(f);return;};break;
+                case 2:if(!StorageManager::atribuirInt(dev->time,line)){ESP_LOGI(TAG,"time inválido");fclose(f);return;};break;
+                case 3:if(!StorageManager::atribuirInt(dev->status,line)){ESP_LOGI(TAG,"status inválido");fclose(f);return;};break;
                 case 4:strncpy(dev->x_str, line, sizeof(dev->x_str) - 1);dev->x_str[sizeof(dev->x_str) - 1] = '\0';break;
-                case 5:dev->x_int = static_cast<uint8_t>(atoi(line));break;
+                case 5:if(!StorageManager::atribuirInt(dev->x_int,line)){ESP_LOGI(TAG,"x_int inválido");fclose(f);return;};break;
             }
             ++index;
         }
@@ -134,9 +134,9 @@ namespace Storage {
             line[strcspn(line, "\r\n")] = 0;
             switch (index) {
                 case 0:strncpy(sen->name, line, sizeof(sen->name) - 1);sen->name[sizeof(sen->name) - 1] = '\0';break;
-                case 1:sen->type = static_cast<uint8_t>(atoi(line));break;
-                case 2:sen->time = static_cast<uint16_t>(atoi(line));break;
-                case 3:sen->x_int = static_cast<uint8_t>(atoi(line));break;
+                case 1:if(!StorageManager::atribuirInt(sen->type,line)){ESP_LOGI(TAG,"type inválido");fclose(f);return;};break;
+                case 2:if(!StorageManager::atribuirInt(sen->time,line)){ESP_LOGI(TAG,"time inválido");fclose(f);return;};break;
+                case 3:if(!StorageManager::atribuirInt(sen->x_int,line)){ESP_LOGI(TAG,"status inválido");fclose(f);return;};break;
                 case 4:strncpy(sen->x_str, line, sizeof(sen->x_str) - 1);sen->x_str[sizeof(sen->x_str) - 1] = '\0';break;
             }
             ++index;
@@ -313,17 +313,16 @@ namespace Storage {
         loadGlobalConfigFile();
         loadCredentialConfigFile();
         loadFileToPsram("/littlefs/index.html","index.html","text/html");
-        loadFileToPsram("/littlefs/manifest.json","manifest.json","application/json");
-        loadFileToPsram("/littlefs/js/health-check.js","js/health-check.js","application/javascript");
-        loadFileToPsram("/littlefs/app.html","app.html","text/html");
         loadFileToPsram("/littlefs/agenda.html","agenda.html","text/html");
         loadFileToPsram("/littlefs/automacao.html","automacao.html","text/html");
         loadFileToPsram("/littlefs/atualizar.html","atualizar.html","text/html");
         loadFileToPsram("/littlefs/central.html","central.html","text/html");
         loadFileToPsram("/littlefs/css/igra.css","css/igra.css","text/css");
         loadFileToPsram("/littlefs/css/bootstrap.min.css","css/bootstrap.min.css","text/css");
+        loadFileToPsram("/littlefs/css/bootstrap.min.css.map","css/bootstrap.min.css.map","text/css");
         loadFileToPsram("/littlefs/js/messages.js","js/messages.js","application/javascript");
         loadFileToPsram("/littlefs/js/icons.js","js/icons.js","application/javascript");
+        loadFileToPsram("/littlefs/img/logomarca.png","img/logomarca.png","image/png");
         loadFileToPsram("/littlefs/img/logomarca","img/logomarca","image/png");
         loadFileToPsram("/littlefs/img/favicon.ico","favicon.ico","image/x-icon");
         loadFileToPsram("/littlefs/ha/description.xml","description.xml","text/xml");

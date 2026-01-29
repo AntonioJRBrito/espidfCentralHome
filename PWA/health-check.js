@@ -5,9 +5,9 @@
  */
 
 const HEALTH_CHECK_TIMEOUT = 2000; // 2 segundos
-const LOCAL_ENDPOINT = 'http://automacao.local/health';
+const LOCAL_ENDPOINT = '/health';
 const WEB_ENDPOINT = 'https://automacao-ia.app/index.html';
-const LOCAL_APP = 'http://automacao.local/app.html';
+const LOCAL_APP = '/app.html';
 
 async function checkLocalHealth() {
     const controller = new AbortController();

@@ -7,5 +7,5 @@ app1,app,ota_1,0x00410000,0x00400000
 littlefs,data,littlefs,0x00810000,0x00300000
 coredump,data,coredump,0x00B10000,0x00020000
 factory,app,factory,0x00B30000,0x00400000
-certs,data,fat,0x00F30000,0x00040000
+certs,data,littlefs,0x00F30000,0x00040000
 logs,data,fat,0x00F70000,0x00080000

@@ -263,16 +263,16 @@ namespace BrokerManager {
                                 ESP_LOGI(TAG, "Payload INF recebido de '%s'.", client_devsen_id.c_str());
                                 std::string payload_without_prefix = payload.substr(4);
                                 std::vector<std::string> parts = StorageManager::splitString(payload_without_prefix, ':');
-                                if(parts.size()!=5){ESP_LOGE(TAG,"INF inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
+                                if(parts.size()!=5){ESP_LOGI(TAG,"INF inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
                                 DeviceDTO device_dto;
                                 strncpy(device_dto.id, client_devsen_id.c_str(), sizeof(device_dto.id) - 1);
                                 device_dto.id[sizeof(device_dto.id) - 1] = '\0';
-                                device_dto.type = static_cast<uint8_t>(atoi(parts[0].c_str()));
+                                if(!StorageManager::atribuirInt(device_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");return;}
                                 strncpy(device_dto.name, parts[1].c_str(), sizeof(device_dto.name) - 1);
                                 device_dto.name[sizeof(device_dto.name) - 1] = '\0';
-                                device_dto.time = static_cast<uint16_t>(atoi(parts[2].c_str()));
-                                device_dto.status = static_cast<uint8_t>(atoi(parts[3].c_str()));
-                                device_dto.x_int = static_cast<uint8_t>(atoi(parts[4].c_str()));
+                                if(!StorageManager::atribuirInt(device_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");return;}
+                                if(!StorageManager::atribuirInt(device_dto.status,parts[3])){ESP_LOGI(TAG,"status inválido");return;}
+                                if(!StorageManager::atribuirInt(device_dto.x_int,parts[4])){ESP_LOGI(TAG,"x_int inválido");return;}
                                 ESP_LOGI(TAG, "INF_HANDLER:DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(Status=%u)(X_Int=%u)(X_Str='%s')",device_dto.id,device_dto.name,device_dto.type,device_dto.time,device_dto.status,device_dto.x_int,device_dto.x_str);
                                 RequestSave requester;
                                 strncpy(requester.request_char,device_dto.id,sizeof(device_dto.id)-1);
@@ -290,11 +290,11 @@ namespace BrokerManager {
                                 SensorDTO sensor_dto;
                                 strncpy(sensor_dto.id, client_devsen_id.c_str(), sizeof(sensor_dto.id) - 1);
                                 sensor_dto.id[sizeof(sensor_dto.id) - 1] = '\0';
-                                sensor_dto.type = static_cast<uint8_t>(atoi(parts[0].c_str()));
+                                if(!StorageManager::atribuirInt(sensor_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");return;}
                                 strncpy(sensor_dto.name, parts[1].c_str(), sizeof(sensor_dto.name) - 1);
                                 sensor_dto.name[sizeof(sensor_dto.name) - 1] = '\0';
-                                sensor_dto.time = static_cast<uint16_t>(atoi(parts[2].c_str()));
-                                sensor_dto.x_int = static_cast<uint8_t>(atoi(parts[3].c_str()));
+                                if(!StorageManager::atribuirInt(sensor_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");return;}
+                                if(!StorageManager::atribuirInt(sensor_dto.x_int,parts[3])){ESP_LOGI(TAG,"x_int inválido");return;}
                                 ESP_LOGI(TAG, "SEN_HANDLER:DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(X_Int=%u)(X_Str='%s')",sensor_dto.id,sensor_dto.name,sensor_dto.type,sensor_dto.time,sensor_dto.x_int,sensor_dto.x_str);
                                 RequestSave requester;
                                 strncpy(requester.request_char,sensor_dto.id,sizeof(sensor_dto.id)-1);

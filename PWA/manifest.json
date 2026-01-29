@@ -1,7 +1,7 @@
 {
-  "name": "IGRA - Automação",
-  "short_name": "IGRA",
-  "description": "Central de automação residencial",
+  "name": "IA - Automação",
+  "short_name": "IASoluções",
+  "description": "Central de automação",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000",
@@ -9,7 +9,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/img/logomarca",
+      "src": "/img/logomarca.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"

@@ -8,6 +8,7 @@
 #include "event_bus.hpp"
 #include "storage_manager.hpp"
 #include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_netif.h"
 #include "cJSON.h"
 #include "esp_random.h"

@@ -114,8 +114,7 @@ namespace WebManager {
                     content_buf[ret] = '\0';
                     std::string provided_password = content_buf;
                     ESP_LOGD(TAG, "Senha recebida: '%s'", provided_password.c_str());
-                    if (StorageManager::cd_cfg && !StorageManager::isBlankOrEmpty(StorageManager::cd_cfg->password) &&
-                        provided_password == StorageManager::cd_cfg->password) {
+                    if(StorageManager::isPassValid(provided_password)){
                         current_token = gerarTokenNumerico();
                         response_str = "sucesso:" + std::to_string(current_token);
                         ESP_LOGI(TAG, "Login bem-sucedido. Token gerado: %u", current_token);
@@ -198,22 +197,18 @@ namespace WebManager {
             ESP_LOGI(TAG, "Servido: lights_all.json (%zu bytes)", content.length());
             return ESP_OK;
         }
-        int device_id = atoi(id.c_str());
+        int device_id;
+        if(!StorageManager::atribuirInt(device_id,id)){ESP_LOGI(TAG,"type inválido");return ESP_ERR_INVALID_ARG;}
         if (device_id < 1 || device_id > 3) {ESP_LOGW(TAG, "ID inválido: %d", device_id);return ESP_ERR_INVALID_ARG;}
         const Page* page = StorageManager::getPage("api/light_detail.json");
         if (!page) {ESP_LOGE(TAG, "light_detail.json não encontrado");return ESP_FAIL;}
         std::string content((char*)page->data, page->size);
         content = StorageManager::replacePlaceholders(content,"$DEVICE",std::to_string(device_id));
-        // content = GlobalConfigData::replacePlaceholders(content,"$DEVICENAME$",???);
         content = StorageManager::replacePlaceholders(content,"$MAC",StorageManager::id_cfg->mac);
-        
-        // Substitui status
-        bool device_status = false; // TODO: buscar status real
+        bool device_status = false;
         content = StorageManager::replacePlaceholders(content, "$STATUS$", device_status ? "true" : "false");
-        
         httpd_resp_set_type(req, "application/json");
         httpd_resp_send(req, content.c_str(), content.length());
-        
         ESP_LOGI(TAG, "Servido: light_detail.json para ID=%d (%zu bytes)", device_id, content.length());
         return ESP_OK;
     }
@@ -234,49 +229,41 @@ namespace WebManager {
         ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
         return ESP_OK;
     }
-    // --- Handler para o health do ESP ---
-    static esp_err_t health_check_handler(httpd_req_t* req) {
-        ESP_LOGI(TAG, "GET health");
+    // --- Handler do health da Central ---
+    static esp_err_t health_get_handler(httpd_req_t *req)
+    {
+        const char *resp = "OK";
         httpd_resp_set_type(req, "text/plain");
-        httpd_resp_sendstr(req, "ok");
-        return ESP_OK;
+        httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+        esp_err_t err = httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+        ESP_LOGI(TAG, "GET /health -> OK");
+        return err;
     }
     // --- Registrador de handlers ---
     static void registerUriHandler(const char* description, http_method method, esp_err_t (*handler)(httpd_req_t *r)) {
-        if (uri_count >= 30) {
-            ESP_LOGE(TAG, "Número máximo de URIs atingido");
-            return;
-        }
-        httpd_uri_t* uri = &uri_handlers[uri_count++];  // pega o próximo slot estático
+        if(uri_count>=40){ESP_LOGE(TAG,"Número máximo de URIs atingido");return;}
+        httpd_uri_t* uri = &uri_handlers[uri_count++];
         uri->uri = description;
         uri->method = method;
         uri->handler = handler;
         uri->user_ctx = nullptr;
         esp_err_t ret = httpd_register_uri_handler(server, uri);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "✓ URI '%s' registrada com sucesso", description);
-        } else {
-            ESP_LOGE(TAG, "✗ Falha ao registrar URI '%s': %s", description, esp_err_to_name(ret));
-        }
+        if (ret == ESP_OK) {ESP_LOGI(TAG, "✓ URI '%s' registrada com sucesso", description);}
+        else {ESP_LOGE(TAG, "✗ Falha ao registrar URI '%s': %s", description, esp_err_to_name(ret));}
     }
-    // --- Inicializa servidor HTTP ---
+    // --- Inicializa servidor HTTPS ---
     static void startServer() {
         if (server) { ESP_LOGW(TAG, "Servidor já em execução"); return; }
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.server_port = 80;
         config.lru_purge_enable = true;
         config.uri_match_fn = httpd_uri_match_wildcard;
-        config.max_uri_handlers = 40;
+        config.max_uri_handlers = 30;
         if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
         else{ESP_LOGI(TAG, "Servidor HTTP executando");}
         // 1. Rotas estáticas principais (HTML/JSON/CSS/JS/IMG)
-        // 1.PWA
         registerUriHandler("/",HTTP_GET,root_handler);
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
-        registerUriHandler("/manifest.json",HTTP_GET,serve_static_file_handler);
-        registerUriHandler("/health",HTTP_GET,health_check_handler);
-        // 1.WEB
-        registerUriHandler("/app.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/agenda.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/automacao.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/atualizar.html*",HTTP_GET,serve_static_file_handler);
@@ -291,6 +278,7 @@ namespace WebManager {
         registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
         // 3. Rotas de configuração e controle da central
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
+        registerUriHandler("/health",HTTP_GET,health_get_handler);
         registerUriHandler("/encerrar/*",HTTP_POST,encerrar_handler);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, error_404_redirect_handler);
         // 4. GETINFO perdido
@@ -302,7 +290,7 @@ namespace WebManager {
 
         //   putgetSTR="/api/"+ID+"/lights";
 
-        ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
+        // ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
         if (static_cast<EventId>(id)==EventId::NET_IFOK) {
@@ -318,7 +306,6 @@ namespace WebManager {
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando WebManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
-        // EventBus::regHandler(EventDomain::SOCKET, &onSocketEvent, nullptr);
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);
         ESP_LOGI(TAG, "Timer de encerramento criado.");
         EventBus::post(EventDomain::READY, EventId::WEB_READY);
