@@ -15,9 +15,12 @@
 #include "esp_random.h"
 #include "freertos/timers.h"
 #include <stdexcept>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 namespace WebManager {
-    // init do web_manager
+    // inicialização
     esp_err_t init();
     // handlers HTTP
     static esp_err_t root_handler(httpd_req_t* req);
@@ -26,8 +29,6 @@ namespace WebManager {
     static esp_err_t login_auth_handler(httpd_req_t* req);
     static esp_err_t get_config_handler(httpd_req_t* req);
     static esp_err_t encerrar_handler(httpd_req_t* req);
-    static esp_err_t upnp_description_handler(httpd_req_t* req);
-    static esp_err_t api_handler(httpd_req_t* req);
     // 
     static void startServer();
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);

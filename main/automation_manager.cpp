@@ -38,6 +38,12 @@ namespace AutomationManager {
         AutomationTaskParams* params = (AutomationTaskParams*)pvParameters;
         ESP_LOGI(TAG,"sizeof(SensorEventData)=%zu, offset inform=%zu", sizeof(AutomationTaskParams), offsetof(AutomationTaskParams, inform));
         if(params->inform!=0&&params->inform!=1){ESP_LOGW(TAG,"Inform inválido:%u",params->inform);free(params);vTaskDelete(NULL);return;}
+        // Envio MQTT
+        char data_buffer[32];
+        if(strcmp(params->sensor_id,"4")==0){snprintf(data_buffer,sizeof(data_buffer),"ATU:%.12s:%u",StorageManager::id_cfg->id,params->inform);
+        }else{snprintf(data_buffer,sizeof(data_buffer),"ATU:%.12s:%u",params->sensor_id,params->inform);}
+        MqttManager::publish_alx(data_buffer);
+        // Automação
         std::string sensor_id_str(params->sensor_id);
         const std::vector<DeviceAction>* actions = StorageManager::getAutomationBySensor(sensor_id_str);
         if(!actions){ESP_LOGW(TAG,"Nenhuma automação encontrada para sensor:%s inform:%u",params->sensor_id,params->inform);free(params);vTaskDelete(NULL);return;}
@@ -142,12 +148,24 @@ namespace AutomationManager {
             }
         }
     }
+    // Storage de sensor
+    static void onStorageEvent(void*, esp_event_base_t, int32_t id, void* data) {
+        EventId evt = static_cast<EventId>(id);
+        if (evt==EventId::STO_SENSORSAVED){
+            // std::string json = StorageManager::buildJSONDevice(data);
+            // if(!json.empty()){
+            //     std::string result = "UPD:"+json;
+            //     publish(result.c_str());
+            // }
+        }
+    }
     // Init
     esp_err_t init(){
         ESP_LOGI(TAG, "Inicializando Automation...");
         EventBus::post(EventDomain::READY, EventId::AUT_READY);
         EventBus::regHandler(EventDomain::AUTOMATION,&onEventAutomationBus,nullptr);
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
+        EventBus::regHandler(EventDomain::STORAGE, &onStorageEvent, nullptr);
         ESP_LOGI(TAG, "→ AUT_READY publicado");
         return ESP_OK;
     }

@@ -266,11 +266,9 @@ namespace SocketManager {
                 GlobalConfigDTO config_dto;
                 cJSON* cn = cJSON_GetObjectItem(root, "cNome");
                 cJSON* tf = cJSON_GetObjectItem(root, "userChoice");
-                // cJSON* ti = cJSON_GetObjectItem(root, "userTk");
                 cJSON* tp = cJSON_GetObjectItem(root, "inpPassTk");
                 if (cn) strncpy(config_dto.central_name,cn->valuestring,sizeof(config_dto.central_name)-1);
                 if (tf) strncpy(config_dto.token_flag,tf->valuestring,sizeof(config_dto.token_flag)-1);
-                // if (ti) 
                 strncpy(config_dto.token_id,"notoken",sizeof(config_dto.token_id)-1);
                 if (tp) strncpy(config_dto.token_password,tp->valuestring,sizeof(config_dto.token_password)-1);
                 config_dto.central_name[sizeof(config_dto.central_name)-1]='\0';

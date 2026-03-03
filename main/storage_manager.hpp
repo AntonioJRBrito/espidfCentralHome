@@ -20,6 +20,7 @@
 #include "esp_wifi.h"
 #include <sstream>
 #include <cstdlib>
+#include "mqtt_manager.hpp"
 
 #define MAX_MAC_LEN                     18
 #define MAX_ID_LEN                      13
@@ -212,6 +213,7 @@ namespace StorageManager {
     const std::vector<DeviceAction>* getAutomationBySensor(const std::string& sensor_id);
     // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
+    void onMQTTEvent(void*, esp_event_base_t, int32_t id, void*);
     // Função para enfileirar requisições de armazenamento
     esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,RequestSave requester,EventId response_event_id=EventId::NONE);
     // Função de inicialização

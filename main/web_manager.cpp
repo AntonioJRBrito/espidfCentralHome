@@ -26,14 +26,9 @@ namespace WebManager {
                     else if (hex_char2 >= 'A' && hex_char2 <= 'F') decoded_char |= (hex_char2 - 'A' + 10);
                     decoded_string += decoded_char;
                     i += 2;
-                } else {
-                    decoded_string += encoded_string[i];
-                }
-            } else if (encoded_string[i] == '+') {
-                decoded_string += ' ';
-            } else {
-                decoded_string += encoded_string[i];
-            }
+                } else {decoded_string += encoded_string[i];}
+            } else if (encoded_string[i] == '+') {decoded_string += ' ';
+            } else {decoded_string += encoded_string[i];}
         }
         return decoded_string;
     }
@@ -55,6 +50,49 @@ namespace WebManager {
     // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
+        if(uri.find("description.xml")!=std::string::npos){
+            int sockfd = httpd_req_to_sockfd(req);
+            if (sockfd >= 0) {
+                char ipstr[INET6_ADDRSTRLEN] = {0};
+                uint16_t port = 0;
+
+                // use sockaddr_storage para cobrir IPv4 e IPv6
+                struct sockaddr_storage addr;
+                socklen_t addr_len = sizeof(addr);
+                if (getpeername(sockfd, (struct sockaddr*)&addr, &addr_len) == 0) {
+                    if (addr.ss_family == AF_INET) {
+                        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+                        inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof(ipstr));
+                        port = ntohs(s->sin_port);
+                    } else if (addr.ss_family == AF_INET6) {
+                        struct sockaddr_in6 *s6 = (struct sockaddr_in6 *)&addr;
+                        // verifica se é IPv4-mapeado ::ffff:a.b.c.d
+                        const unsigned char *b = (const unsigned char *)&s6->sin6_addr;
+                        bool is_v4_mapped = (b[0]==0 && b[1]==0 && b[2]==0 && b[3]==0 &&
+                                            b[4]==0 && b[5]==0 && b[6]==0 && b[7]==0 &&
+                                            b[8]==0 && b[9]==0 && b[10]==0xFF && b[11]==0xFF);
+                        if (is_v4_mapped) {
+                            // extrai os últimos 4 bytes como IPv4
+                            struct in_addr v4addr;
+                            memcpy(&v4addr.s_addr, &b[12], 4);
+                            inet_ntop(AF_INET, &v4addr, ipstr, sizeof(ipstr));
+                        } else {
+                            inet_ntop(AF_INET6, &s6->sin6_addr, ipstr, sizeof(ipstr));
+                        }
+                        port = ntohs(s6->sin6_port);
+                    } else {
+                        strncpy(ipstr, "unknown", sizeof(ipstr)-1);
+                    }
+
+                    ESP_LOGW(TAG, "description.xml solicitado por %s:%d", ipstr, port);
+                } else {
+                    ESP_LOGE(TAG, "getpeername failed: errno=%d", errno);
+                }
+            } else {
+                ESP_LOGE(TAG, "httpd_req_to_sockfd returned invalid fd: %d", sockfd);
+            }
+
+        }
         if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
         size_t query_pos = uri.find('?');
         if(query_pos!=std::string::npos){uri=uri.substr(0,query_pos);}
@@ -155,65 +193,94 @@ namespace WebManager {
         return ESP_OK;
     }
     // handler GETINFO
-    static esp_err_t getinfo_handler(httpd_req_t *req) {
+    static esp_err_t getinfo_handler(httpd_req_t *req){
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not found");
         return ESP_OK;
     }
     // --- Handlers para HA ---
-    static esp_err_t upnp_description_handler(httpd_req_t* req) {
-        const Page* page = StorageManager::getPage("description.xml");
-        if(!page){ESP_LOGW(TAG, "description.xml não encontrado");return ESP_ERR_NOT_FOUND;}
-        std::string content((char*)page->data, page->size);
-        content=StorageManager::replacePlaceholders(content,"$IP$",StorageManager::id_cfg->ip);
-        content=StorageManager::replacePlaceholders(content,"$ID$",StorageManager::id_cfg->id);
-        httpd_resp_set_type(req, page->mime.c_str());
-        httpd_resp_send(req, content.c_str(), content.length());
-        ESP_LOGW(TAG,"%s", content.c_str());
+    static esp_err_t create_user_handler(httpd_req_t* req){
+        std::string username = "user_" + std::string(StorageManager::id_cfg->id);
+        std::string response = R"([{"success":{"username":")"+username+R"("}}])";
+        httpd_resp_set_type(req,"application/json");
+        httpd_resp_send(req,response.c_str(),response.length());
+        ESP_LOGI(TAG,"Username gerado: %s",username.c_str());
         return ESP_OK;
     }
-    static esp_err_t api_handler(httpd_req_t* req) {
-        const Page* page = StorageManager::getPage("apiget.json");
-        if(!page){ESP_LOGW(TAG, "apiget.json não encontrado");return ESP_ERR_NOT_FOUND;}
-        std::string content((char*)page->data, page->size);
-        content=StorageManager::replacePlaceholders(content,"$ID$",StorageManager::id_cfg->id);
-        httpd_resp_set_type(req, page->mime.c_str());
-        httpd_resp_send(req, content.c_str(), content.length());
-        ESP_LOGW(TAG,"%s", content.c_str());
-        return ESP_OK;
-    }
-    static esp_err_t lights_handler_get(httpd_req_t* req) {
-        std::string uri = req->uri;
-        ESP_LOGI(TAG, "GET: %s", uri.c_str());
-        size_t pos = uri.find("/lights");
-        if(pos == std::string::npos){return ESP_ERR_NOT_FOUND;}
-        std::string id = uri.substr(pos + 8);
-        if (id.empty()) {
-            const Page* page = StorageManager::getPage("lights_all.json");
-            if (!page) {ESP_LOGE(TAG, "lights_all.json não encontrado");return ESP_FAIL;}
-            std::string content((char*)page->data, page->size);
-            content = StorageManager::replacePlaceholders(content,"$MAC$",StorageManager::id_cfg->mac);
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_send(req, content.c_str(), content.length());
-            ESP_LOGI(TAG, "Servido: lights_all.json (%zu bytes)", content.length());
-            return ESP_OK;
+    static esp_err_t list_lights_handler(httpd_req_t* req){
+        const Page* page = StorageManager::getPage("devices.json");
+        if(!page){ESP_LOGW(TAG,"Arquivo devices.json não encontrado na PSRAM");httpd_resp_send_500(req);return ESP_FAIL;}
+        std::string response((char*)page->data,page->size);
+        for (int i = 1; i <= 3; i++) {
+            std::string device_id_str = std::to_string(i);
+            const Device* device_ptr = StorageManager::getDevice(device_id_str);
+            if (device_ptr) {
+                std::string placeholder = "$DEVICE" + device_id_str + "$";
+                std::string device_name(device_ptr->name);
+                response = StorageManager::replacePlaceholders(response, placeholder.c_str(), device_name.c_str());
+            }
         }
-        int device_id;
-        if(!StorageManager::atribuirInt(device_id,id)){ESP_LOGI(TAG,"type inválido");return ESP_ERR_INVALID_ARG;}
-        if (device_id < 1 || device_id > 3) {ESP_LOGW(TAG, "ID inválido: %d", device_id);return ESP_ERR_INVALID_ARG;}
-        const Page* page = StorageManager::getPage("api/light_detail.json");
-        if (!page) {ESP_LOGE(TAG, "light_detail.json não encontrado");return ESP_FAIL;}
-        std::string content((char*)page->data, page->size);
-        content = StorageManager::replacePlaceholders(content,"$DEVICE",std::to_string(device_id));
-        content = StorageManager::replacePlaceholders(content,"$MAC",StorageManager::id_cfg->mac);
-        bool device_status = false;
-        content = StorageManager::replacePlaceholders(content, "$STATUS$", device_status ? "true" : "false");
+        httpd_resp_set_type(req,"application/json");
+        httpd_resp_send(req,response.c_str(),response.length());
+        ESP_LOGI(TAG, "Lista de devices retornada (%zu bytes)", response.length());
+        return ESP_OK;
+    }
+    static esp_err_t get_light_handler(httpd_req_t* req){
+        std::string uri(req->uri);
+        size_t last_slash = uri.rfind('/');
+        if(last_slash == std::string::npos){httpd_resp_send_404(req);return ESP_OK;}
+        std::string device_id_str = uri.substr(last_slash + 1);
+        int device_id = std::stoi(device_id_str);
+        if(device_id < 1 || device_id > 3) {httpd_resp_send_404(req);return ESP_OK;}
+        const Page* page = StorageManager::getPage("device.json");
+        if(!page){ESP_LOGW(TAG,"Arquivo device.json não encontrado na PSRAM");httpd_resp_send_500(req);return ESP_FAIL;}
+        std::string response((char*)page->data,page->size);
+        const Device* device_ptr = StorageManager::getDevice(device_id_str);
+        if (!device_ptr) {httpd_resp_send_500(req);return ESP_FAIL;}
+        response = StorageManager::replacePlaceholders(response,"$DEVICE$",device_id_str.c_str());
+        response = StorageManager::replacePlaceholders(response,"$DEVICENAME$",device_ptr->name);
+        response = StorageManager::replacePlaceholders(response,"$STATUS$",device_ptr->status ? "true" : "false");
+        httpd_resp_set_type(req,"application/json");
+        httpd_resp_send(req,response.c_str(),response.length());
+        ESP_LOGI(TAG,"Estado do device %d (%s) retornado", device_id, device_ptr->name);
+        return ESP_OK;
+    }
+    static esp_err_t set_light_handler(httpd_req_t* req){
+        std::string uri(req->uri);
+        if(uri.find("/state")==std::string::npos){httpd_resp_send_404(req);return ESP_OK;}
+        size_t last_slash = uri.rfind('/');
+        if(last_slash==std::string::npos||uri.substr(last_slash)!="/state"){httpd_resp_send_404(req);return ESP_OK;}
+        size_t second_last_slash = uri.rfind('/', last_slash - 1);
+        if(second_last_slash==std::string::npos){httpd_resp_send_404(req);return ESP_OK;}
+        std::string device_id_str=uri.substr(second_last_slash + 1, last_slash - second_last_slash - 1);
+        int device_id = std::stoi(device_id_str);
+        if (device_id < 1 || device_id > 3) {httpd_resp_send_404(req);return ESP_OK;}
+        char buf[256] = {0};
+        int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+        if (ret <= 0) {httpd_resp_send_404(req);return ESP_FAIL;}
+        cJSON* json = cJSON_Parse(buf);
+        if (!json) {httpd_resp_send_404(req);return ESP_FAIL;}
+        cJSON* on_item = cJSON_GetObjectItem(json, "on");
+        if(!on_item||!cJSON_IsBool(on_item)){cJSON_Delete(json);httpd_resp_send_404(req);return ESP_FAIL;}
+        bool new_state = on_item->type == cJSON_True;
+        cJSON_Delete(json);
+        const Device* device_ptr = StorageManager::getDevice(device_id_str);
+        if (!device_ptr) {httpd_resp_send_500(req);return ESP_FAIL;}
+        DeviceDTO device_dto;
+        memcpy(&device_dto, device_ptr, sizeof(DeviceDTO));
+        device_dto.status=new_state;
+        RequestSave requester;
+        requester.requester=device_id;
+        requester.request_int=device_id;
+        requester.resquest_type=RequestTypes::REQUEST_INT;
+        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+        std::string response= R"([{"success": {"/lights/)"+device_id_str+R"(/state/on": )"+std::string(new_state ?"true":"false")+R"(}}])";
         httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, content.c_str(), content.length());
-        ESP_LOGI(TAG, "Servido: light_detail.json para ID=%d (%zu bytes)", device_id, content.length());
+        httpd_resp_send(req, response.c_str(), response.length());
+        ESP_LOGI(TAG, "Device %d alterada para %s",device_id,new_state ? "1" : "0");
         return ESP_OK;
     }
     // --- Handler redirecionador para "/" ---
-    static esp_err_t not_found_handler(httpd_req_t* req) {
+    static esp_err_t not_found_handler(httpd_req_t* req){
         ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
         httpd_resp_set_hdr(req, "Location", "/");
@@ -221,7 +288,7 @@ namespace WebManager {
         return ESP_OK;
     }
     // --- Handler para a raiz "/" (serve index.html) ---
-    static esp_err_t root_handler(httpd_req_t* req) {
+    static esp_err_t root_handler(httpd_req_t* req){
         const Page* page = StorageManager::getPage("index.html");
         if(!page){ESP_LOGW(TAG,"index.html não encontrado");httpd_resp_send_404(req);return ESP_OK;}
         httpd_resp_set_type(req, "text/html");
@@ -258,7 +325,11 @@ namespace WebManager {
         config.server_port = 80;
         config.lru_purge_enable = true;
         config.uri_match_fn = httpd_uri_match_wildcard;
-        config.max_uri_handlers = 30;
+        config.max_uri_handlers = 40;
+        config.max_open_sockets = 12;
+        config.backlog_conn = 8;
+        config.task_priority = tskIDLE_PRIORITY + 2;
+        config.stack_size = 8192; 
         if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
         else{ESP_LOGI(TAG, "Servidor HTTP executando");}
         // 1. Rotas estáticas principais (HTML/JSON/CSS/JS/IMG)
@@ -285,10 +356,14 @@ namespace WebManager {
         registerUriHandler("/GETINFO",HTTP_GET,getinfo_handler);
         registerUriHandler("/GETINFO",HTTP_POST,getinfo_handler);
         // 5. Rotas ha
-        registerUriHandler("/description.xml",HTTP_GET,upnp_description_handler);
-        registerUriHandler("/api",(httpd_method_t)HTTP_ANY,api_handler);
-
-        //   putgetSTR="/api/"+ID+"/lights";
+        registerUriHandler("/description.xml",HTTP_GET,serve_static_file_handler);
+        registerUriHandler("/api",HTTP_POST,create_user_handler);
+        std::string username = "user_" + std::string(StorageManager::id_cfg->id);
+        std::string uri_lights = "/api/" + username + "/lights";
+        std::string uri_light_id = "/api/" + username + "/lights/*";
+        registerUriHandler(uri_lights.c_str(),HTTP_GET,list_lights_handler);
+        registerUriHandler(uri_light_id.c_str(),HTTP_GET,get_light_handler);
+        registerUriHandler(uri_light_id.c_str(),HTTP_PUT,set_light_handler);
 
         // ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }

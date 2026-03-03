@@ -5,6 +5,8 @@ namespace BrokerManager {
     // --- Constantes para Autenticação Fixa ---
     const std::string FIXED_USERNAME = "iacentral";
     const std::string FIXED_PASSWORD = "iapass";
+    static TaskHandle_t s_broker_listener_task_handle = NULL;
+    static bool s_broker_listener_task_created = false;
     // --- Estruturas de Dados para o Broker ---
     static std::map<std::string, int> s_device_id_to_fd;
     // Mutex para proteger o acesso a s_device_id_to_fd
@@ -286,7 +288,7 @@ namespace BrokerManager {
                                 ESP_LOGI(TAG, "Payload SEN recebido de '%s': %s", client_devsen_id.c_str(), payload.c_str());
                                 std::string payload_without_prefix = payload.substr(4);
                                 std::vector<std::string> parts = StorageManager::splitString(payload_without_prefix, ':');
-                                if(parts.size()!=4){ESP_LOGE(TAG,"INF inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
+                                if(parts.size()!=4){ESP_LOGE(TAG,"SEN inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
                                 SensorDTO sensor_dto;
                                 strncpy(sensor_dto.id, client_devsen_id.c_str(), sizeof(sensor_dto.id) - 1);
                                 sensor_dto.id[sizeof(sensor_dto.id) - 1] = '\0';
@@ -302,7 +304,7 @@ namespace BrokerManager {
                                 requester.requester=client_fd;
                                 requester.resquest_type=RequestTypes::REQUEST_CHAR;
                                 esp_err_t sensor_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
-                                if (sensor_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Device '%s'", sensor_dto.id);}
+                                if (sensor_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Sensor '%s'", sensor_dto.id);}
                                 else {ESP_LOGI(TAG, "INF_HANDLER: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
                             } else if (payload.rfind("SNA:", 0) == 0) {
                                 std::string inform = payload.substr(4);
@@ -360,11 +362,18 @@ namespace BrokerManager {
     }
     // --- Tarefa que escuta por novas conexões TCP para o broker ---
     void broker_listener_task(void *pvParameters) {
+        s_broker_listener_task_handle = xTaskGetCurrentTaskHandle();
         char addr_str[128];
         int addr_family = AF_INET;
         int ip_protocol = IPPROTO_IP;
         int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
-        if (listen_sock < 0) {ESP_LOGE(TAG, "Falha ao criar socket: %s", strerror(errno));vTaskDelete(NULL);return;}
+        if (listen_sock < 0) {
+            ESP_LOGE(TAG, "Falha ao criar socket: %s", strerror(errno));
+            s_broker_listener_task_created = false;
+            s_broker_listener_task_handle = NULL;
+            vTaskDelete(NULL);
+            return;
+        }
         int opt = 1;
         setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
         struct sockaddr_in dest_addr;
@@ -372,11 +381,26 @@ namespace BrokerManager {
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(1884);
         int err = bind(listen_sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        if (err != 0) {ESP_LOGE(TAG, "Socket não fez bind: %s", strerror(errno));close(listen_sock);vTaskDelete(NULL);return;}
-        ESP_LOGI(TAG, "Socket bound to port %d", 1884);
+        if (err != 0) {
+            ESP_LOGE(TAG, "Socket não fez bind na porta 1884: %s",strerror(errno));
+            close(listen_sock);
+            s_broker_listener_task_created = false;
+            s_broker_listener_task_handle = NULL;
+            vTaskDelete(NULL);
+            return;
+        }
+        ESP_LOGI(TAG, "Socket bound na porta 1884");
         err = listen(listen_sock, 5);
-        if (err != 0) {ESP_LOGE(TAG, "Error ouvindo: %s", strerror(errno));close(listen_sock);vTaskDelete(NULL);return;}
-        ESP_LOGI(TAG, "Socket listening");
+        if (err != 0) {
+            ESP_LOGE(TAG, "Erro ouvindo na porta 1884 %s",strerror(errno));
+            close(listen_sock);
+            s_broker_listener_task_created = false;
+            s_broker_listener_task_handle = NULL;
+            vTaskDelete(NULL);
+            return;
+        }
+        ESP_LOGI(TAG, "Socket listening na porta 1884");
+        EventBus::post(EventDomain::BROKER, EventId::BRK_LISTENING);
         while (true) {
             ESP_LOGI(TAG, "Aguardando nova conexão...");
             struct sockaddr_storage source_addr;
@@ -388,7 +412,35 @@ namespace BrokerManager {
             xTaskCreate(client_handler_task, "mqtt_client_handler", 4096, (void*)client_fd, 5, NULL);
         }
         close(listen_sock);
+        s_broker_listener_task_created = false;
+        s_broker_listener_task_handle = NULL;
         vTaskDelete(NULL);
+    }
+    // --- Parar o listener ---
+    void stopBrokerListener() {
+        if (s_broker_listener_task_created) {
+            ESP_LOGI(TAG, "Parando tarefa do Broker Listener e fechando clientes.");
+            if (xSemaphoreTake(s_broker_data_mutex, portMAX_DELAY) == pdTRUE) {
+                for (auto const& [dev_id, client_fd] : s_device_id_to_fd) {
+                    ESP_LOGW(TAG, "Fechando conexão de cliente '%s' (FD %d) devido à desconexão da rede.", dev_id.c_str(), client_fd);
+                    close(client_fd);
+                }
+                s_device_id_to_fd.clear();
+                xSemaphoreGive(s_broker_data_mutex);
+            } else {
+                ESP_LOGE(TAG, "Falha ao adquirir mutex para fechar clientes na desconexão da rede.");
+            }
+            if (s_broker_listener_task_handle != NULL) {
+                vTaskDelete(s_broker_listener_task_handle);
+                s_broker_listener_task_handle = NULL;
+            }
+            if (s_broker_data_mutex != NULL) {
+                vSemaphoreDelete(s_broker_data_mutex);
+                s_broker_data_mutex = NULL;
+            }
+            s_broker_listener_task_created = false;
+            ESP_LOGI(TAG, "Broker Listener parado.");
+        }
     }
     // --- Handler de Eventos do Broker ---
     static void onEventBrokerBus(void*, esp_event_base_t base, int32_t id, void* data) {
@@ -404,10 +456,16 @@ namespace BrokerManager {
     static void onEventNetworkBus(void*, esp_event_base_t base, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_STAGOTIP) {
-            ESP_LOGI(TAG, "Evento NET_STAGOTIP recebido. Criando tarefa do Broker Listener.");
-            s_broker_data_mutex = xSemaphoreCreateMutex();
-            if (s_broker_data_mutex == NULL) {ESP_LOGE(TAG, "Falha ao criar mutex para dados do broker!");return;}
-            xTaskCreate(broker_listener_task, "mqtt_broker_listener", 4096, NULL, 5, NULL);
+            if(!s_broker_listener_task_created){
+                ESP_LOGI(TAG, "Evento NET_STAGOTIP recebido. Criando tarefa do Broker Listener.");
+                s_broker_data_mutex = xSemaphoreCreateMutex();
+                if (s_broker_data_mutex == NULL) {ESP_LOGE(TAG, "Falha ao criar mutex para dados do broker!");return;}
+                xTaskCreate(broker_listener_task, "mqtt_broker_listener", 4096, NULL, 5, NULL);
+                s_broker_listener_task_created = true;
+            }else{ESP_LOGW(TAG, "Evento NET_STAGOTIP recebido, mas a tarefa do Broker Listener já está criada.");}
+        }else if (evt == EventId::NET_STADISCONNECTED) {
+            ESP_LOGI(TAG, "Evento NET_STADISCONNECTED recebido. Parando Broker Manager.");
+            stopBrokerListener();
         }
     }
     // --- Função de Inicialização do Módulo BrokerManager ---

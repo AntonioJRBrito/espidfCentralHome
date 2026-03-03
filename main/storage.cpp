@@ -39,22 +39,34 @@ namespace Storage {
         fclose(f);
         ESP_LOGI(TAG, "Configuração /config/config carregada (%d linhas)", index);
     }
-    static void loadFileToPsram(const char* path, const char* k, const char* m) {
+    static void loadFileToPsram(const char* path, const char* k, const char* m, const bool alx = false) {
         FILE* f = fopen(path, "rb");
         if (!f) {ESP_LOGW(TAG, "Arquivo ausente: %s", path);return;}
         fseek(f, 0, SEEK_END);
         size_t sz = ftell(f);
         fseek(f, 0, SEEK_SET);
-        void* buf = heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
-        if(!buf){ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", k);fclose(f);return;}
-        fread(buf, 1, sz, f);
+        char* temp_buf = (char*)malloc(sz + 1);
+        if(!temp_buf){ESP_LOGE(TAG, "Falha ao alocar buffer temporário (%s)", k);fclose(f);return;}
+        size_t read_sz = fread(temp_buf, 1, sz, f);
+        temp_buf[read_sz] = '\0';
         fclose(f);
+        std::string content(temp_buf);
+        free(temp_buf);
+        if(alx){
+            content = StorageManager::replacePlaceholders(content,"$ID$",StorageManager::id_cfg->id);
+            content = StorageManager::replacePlaceholders(content,"$MAC$",StorageManager::id_cfg->mac);
+            content = StorageManager::replacePlaceholders(content,"$IP$",StorageManager::id_cfg->ip);
+            content = StorageManager::replacePlaceholders(content,"$RN$","\r\n");
+        }
+        void* buf = heap_caps_malloc(content.length() + 1, MALLOC_CAP_SPIRAM);
+        if(!buf){ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", k);fclose(f);return;}
+        memcpy(buf, content.c_str(), content.length() + 1);
         void* page_mem = heap_caps_malloc(sizeof(Page), MALLOC_CAP_SPIRAM);
         if (!page_mem) {ESP_LOGE(TAG, "Falha ao alocar PSRAM (%s)", k);heap_caps_free(buf);return;}
         Page* p_psram = reinterpret_cast<Page*>(page_mem);
         memset(p_psram, 0, sizeof(Page));
         p_psram->data = buf;
-        p_psram->size = sz;
+        p_psram->size = content.length();
         p_psram->mime = m;
         StorageManager::registerPage(k, p_psram);
     }
@@ -305,6 +317,8 @@ namespace Storage {
         loadSchedule();
     }
     esp_err_t init() {
+        esp_err_t err = nvs_flash_init();
+        if(err==ESP_ERR_NVS_NO_FREE_PAGES||err==ESP_ERR_NVS_NEW_VERSION_FOUND){ESP_ERROR_CHECK(nvs_flash_erase());err=nvs_flash_init();}
         ESP_LOGI(TAG, "Montando LittleFS...");
         esp_vfs_littlefs_conf_t conf = {"/littlefs","littlefs",nullptr,false,false,false,false};
         esp_err_t ret = esp_vfs_littlefs_register(&conf);
@@ -322,18 +336,22 @@ namespace Storage {
         loadFileToPsram("/littlefs/css/bootstrap.min.css.map","css/bootstrap.min.css.map","text/css");
         loadFileToPsram("/littlefs/js/messages.js","js/messages.js","application/javascript");
         loadFileToPsram("/littlefs/js/icons.js","js/icons.js","application/javascript");
-        loadFileToPsram("/littlefs/img/logomarca.png","img/logomarca.png","image/png");
         loadFileToPsram("/littlefs/img/logomarca","img/logomarca","image/png");
         loadFileToPsram("/littlefs/img/favicon.ico","favicon.ico","image/x-icon");
-        loadFileToPsram("/littlefs/ha/description.xml","description.xml","text/xml");
-        loadFileToPsram("/littlefs/ha/apiget.json","apiget.json","application/json");
-        loadFileToPsram("/littlefs/ha/lights_all.json", "lights_all.json", "application/json");
-        loadFileToPsram("/littlefs/ha/light_detail.json", "light_detail.json", "application/json");
         loadAllDevices();
         loadAllSensors();
         loadAutomation();
         loadSchedule();
         ESP_LOGI(TAG, "Arquivos carregados na PSRAM.");
+        return ESP_OK;
+    }
+    esp_err_t initAlexa() {
+        loadFileToPsram("/littlefs/ha/msearch","msearch","raw",true);
+        loadFileToPsram("/littlefs/ha/notify","notify","text/xml",true);
+        loadFileToPsram("/littlefs/ha/description.xml","description.xml","text/xml",true);
+        loadFileToPsram("/littlefs/ha/devices.json","devices.json","application/json",true);
+        loadFileToPsram("/littlefs/ha/device.json","device.json","application/json",true);
+        ESP_LOGI(TAG, "Arquivos Alexa carregados na PSRAM.");
         return ESP_OK;
     }
 }

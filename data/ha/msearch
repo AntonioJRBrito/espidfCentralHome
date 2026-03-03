@@ -1,0 +1,1 @@
+HTTP/1.1 200 OK$RN$EXT:$RN$CACHE-CONTROL: max-age=100$RN$LOCATION: http://$IP$:80/description.xml$RN$SERVER: FreeRTOS/6.0.5, UPnP/1.0, IpBridge/1.17.0$RN$hue-bridgeid: $ID$$RN$ST: urn:schemas-upnp-org:device:basic:1$RN$USN: uuid:2f402f80-da50-11e1-9b23-$ID$::upnp:rootdevice$RN$$RN$

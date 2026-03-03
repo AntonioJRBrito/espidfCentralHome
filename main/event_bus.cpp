@@ -5,10 +5,9 @@ ESP_EVENT_DEFINE_BASE(READY_BASE);
 ESP_EVENT_DEFINE_BASE(DEVICE_BASE);
 ESP_EVENT_DEFINE_BASE(SOCKET_BASE);
 ESP_EVENT_DEFINE_BASE(WEB_BASE);
-ESP_EVENT_DEFINE_BASE(UDP_BASE);
+ESP_EVENT_DEFINE_BASE(HUE_BASE);
 ESP_EVENT_DEFINE_BASE(BROKER_BASE);
 ESP_EVENT_DEFINE_BASE(MQTT_BASE);
-ESP_EVENT_DEFINE_BASE(MATTER_BASE);
 ESP_EVENT_DEFINE_BASE(AUTOMATION_BASE);
 ESP_EVENT_DEFINE_BASE(OTA_BASE);
 ESP_EVENT_DEFINE_BASE(STORAGE_BASE);
@@ -25,6 +24,7 @@ static  std::unordered_map<EventDomain, DomainInfo> domainMap;
 // Inicialização e registro
 namespace EventBus{
     esp_err_t init() {
+        ESP_ERROR_CHECK(esp_event_loop_create_default());
         esp_event_loop_args_t args = {
             .queue_size = 8,
             .task_name = "event_loop_priority",
@@ -61,10 +61,9 @@ namespace EventBus{
         domainMap[EventDomain::DEVICE] = {DEVICE_BASE,loopFast};
         domainMap[EventDomain::SOCKET] = {SOCKET_BASE,loopMedium};
         domainMap[EventDomain::WEB] = {WEB_BASE,loopMedium};
-        domainMap[EventDomain::UDP] = {UDP_BASE,loopMedium};
+        domainMap[EventDomain::HUE] = {HUE_BASE,loopMedium};
         domainMap[EventDomain::BROKER] = {BROKER_BASE,loopMedium};
         domainMap[EventDomain::MQTT] = {MQTT_BASE,loopMedium};
-        domainMap[EventDomain::MATTER] = {MATTER_BASE,loopMedium};
         domainMap[EventDomain::AUTOMATION] = {AUTOMATION_BASE,loopMedium};
         domainMap[EventDomain::OTA] = {OTA_BASE,loopMedium};
         domainMap[EventDomain::STORAGE] = {STORAGE_BASE,loopSlow};

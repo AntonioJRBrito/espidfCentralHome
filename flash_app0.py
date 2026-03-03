@@ -5,7 +5,7 @@ import os
 
 BUILD_DIR = os.path.join(os.path.dirname(__file__), 'build')
 BIN_FILE = os.path.join(BUILD_DIR, 'CentralHome.bin')  # Renomeado
-FACTORY_OFFSET = '0x010000'
+FACTORY_OFFSET = '0x020000'
 PORT = 'COM3'
 BAUD = '921600'
 

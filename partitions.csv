@@ -1,11 +1,10 @@
 # Name,type,subtype,offset,size
-nvs,data,nvs,0x00009000,0x00004000
-phy_init,data,phy,0x0000D000,0x00001000
-otadata,data,ota,0x0000E000,0x00002000
-app0,app,ota_0,0x00010000,0x00400000
-app1,app,ota_1,0x00410000,0x00400000
-littlefs,data,littlefs,0x00810000,0x00300000
-coredump,data,coredump,0x00B10000,0x00020000
-factory,app,factory,0x00B30000,0x00400000
-certs,data,littlefs,0x00F30000,0x00040000
-logs,data,fat,0x00F70000,0x00080000
+nvs,data,nvs,0x00009000,0x00010000
+phy_init,data,phy,0x00019000,0x00001000
+otadata,data,ota,0x0001A000,0x00002000
+fctry,data,nvs,0x0001C000,0x00004000
+app0,app,ota_0,0x00020000,0x00400000
+app1,app,ota_1,0x00420000,0x00400000
+littlefs,data,littlefs,0x00820000,0x00300000
+coredump,data,coredump,0x00B20000,0x00020000
+factory,app,factory,0x00B40000,0x00400000

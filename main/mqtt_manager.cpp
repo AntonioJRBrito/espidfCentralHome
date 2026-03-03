@@ -85,7 +85,16 @@ namespace MqttManager {
         snprintf(topic, sizeof(topic), "SRV/%s", StorageManager::id_cfg->id);
         int msg_id = esp_mqtt_client_publish(mqtt_client,topic,data,0,0,0);
         if (msg_id < 0) {ESP_LOGE(TAG, "Falha ao publicar em %s", topic);return ESP_FAIL;}
-        ESP_LOGI(TAG, "Publicado em %s (msg_id=%d)", topic, msg_id);
+        ESP_LOGI(TAG, "Publicado em %s (payload=%s)", topic, data);
+        return ESP_OK;
+    }
+    esp_err_t publish_alx(const char* data) {
+        if (mqtt_client == nullptr) {ESP_LOGW(TAG, "Cliente MQTT não inicializado");return ESP_ERR_INVALID_STATE;}
+        char topic[32];
+        snprintf(topic, sizeof(topic), "ALX/%s", StorageManager::id_cfg->id);
+        int msg_id = esp_mqtt_client_publish(mqtt_client,topic,data,0,0,0);
+        if (msg_id < 0) {ESP_LOGE(TAG, "Falha ao publicar em %s", topic);return ESP_FAIL;}
+        ESP_LOGI(TAG, "Publicado em %s (payload=%s)", topic, data);
         return ESP_OK;
     }
     esp_err_t subscribe() {

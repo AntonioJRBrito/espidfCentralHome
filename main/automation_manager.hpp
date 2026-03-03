@@ -7,6 +7,7 @@
 #include <map>
 #include "esp_timer.h"
 #include "storage_manager.hpp"
+#include "mqtt_manager.hpp"
 
 namespace AutomationManager
 {

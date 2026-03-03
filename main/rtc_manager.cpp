@@ -14,10 +14,12 @@ namespace RtcManager {
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
     }
     void initialize_sntp() {
-        ESP_LOGI(TAG, "Inicializando SNTP");
+        ESP_LOGI(TAG, "Tentando configurar SNTP...");
+        esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+        if(esp_sntp_enabled()){ESP_LOGI(TAG, "SNTP já inicializado pelo sistema/RainMaker. Callback registrado.");return;}
+        ESP_LOGI(TAG, "Inicializando SNTP manualmente.");
         esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
         esp_sntp_setservername(0, NTP_SERVER);
-        esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
         esp_sntp_init();
     }
     std::string get_current_time_str() {

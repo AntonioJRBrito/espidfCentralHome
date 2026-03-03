@@ -351,7 +351,7 @@ namespace NetManager
         ESP_ERROR_CHECK(ret);
         // --- Inicialização das interfaces e eventos ---
         ESP_ERROR_CHECK(esp_netif_init());
-        ESP_ERROR_CHECK(esp_event_loop_create_default());
+        // ESP_ERROR_CHECK(esp_event_loop_create_default());
         // Cria as interfaces AP e STA (as duas, pois o modo será AP+STA)
         netif_ap  = esp_netif_create_default_wifi_ap();
         netif_sta = esp_netif_create_default_wifi_sta();
@@ -388,13 +388,11 @@ namespace NetManager
         err = mdns_instance_name_set("Automação - Central");
         if (err != ESP_OK) {ESP_LOGE(TAG, "Falha ao definir instância mDNS: %s", esp_err_to_name(err));return err;}
         mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
-        ESP_LOGI(TAG, "✓ mDNS inicializado: automacao.local");
+        ESP_LOGI(TAG, "✓ mDNS inicializado: automacao.local (_http)");
         return ESP_OK;
     }
     esp_err_t init()
     {
-        esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);
-        esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr);
         EventBus::regHandler(EventDomain::NETWORK, &onEventNetworkBus, nullptr);
         EventBus::regHandler(EventDomain::STORAGE, &onEventStorageBus, nullptr);
         EventBus::regHandler(EventDomain::READY, &onEventReadyBus, nullptr);

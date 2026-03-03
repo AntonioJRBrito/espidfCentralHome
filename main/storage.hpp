@@ -13,9 +13,11 @@
 #include <vector>
 #include <algorithm>
 #include "cJSON.h"
+#include <nvs_flash.h>
 
 namespace Storage {
     esp_err_t init();
+    esp_err_t initAlexa();
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg);
     esp_err_t saveCredentialConfigFile(CredentialConfig* cd_cfg);
     esp_err_t saveDeviceFile(Device* device);
@@ -26,4 +28,5 @@ namespace Storage {
     void saveAutomation(const char* json_payload);
     void loadSchedule();
     void saveSchedule(const char* json_payload);
+    void loadAllSensors();
 }

@@ -17,6 +17,7 @@ namespace StorageManager {
     static std::unordered_map<std::string, Device*>* deviceMap = nullptr;
     static std::unordered_map<std::string, Sensor*>* sensorMap = nullptr;
     std::unordered_map<std::string, Automation*>* automationMap = nullptr;
+    static bool StartedMQTT = false;
     // --- Funções de Utilidade ---
     bool isBlankOrEmpty(const char* str) {
         if (str == nullptr || str[0] == '\0') {return true;}
@@ -178,10 +179,19 @@ namespace StorageManager {
     void registerSensor(Sensor* sensor) {
         auto it = sensorMap->find(std::string(sensor->id));
         if (it != sensorMap->end()) {
-            ESP_LOGW(TAG, "Sensor '%s' já existe. Liberando memória antiga.",std::string(sensor->id));
+            ESP_LOGW(TAG, "Sensor '%s' já existe. Liberando memória antiga.",sensor->id);
             heap_caps_free(it->second);
         }
         (*sensorMap)[std::string(sensor->id)] = sensor;
+        if(StartedMQTT){
+            char data_buffer[54];
+            char sensor_id[13];
+            if(strcmp(sensor->id,"4")==0){strncpy(sensor_id,StorageManager::id_cfg->id,sizeof(sensor_id)-1);}
+            else{strncpy(sensor_id,sensor->id,sizeof(sensor_id)-1);}
+            sensor_id[sizeof(sensor_id)-1] = '\0';
+            snprintf(data_buffer,sizeof(data_buffer),"CAD:%.12s:%u:%.32s",sensor_id,sensor->x_int,sensor->name);
+            MqttManager::publish_alx(data_buffer);
+        }
         ESP_LOGI(TAG, "Sensor registrado:(ID=%s)(Nome=%s)(Tipo=%d)(tempo=%d)(x_int=%d)(x_str=%s)",sensor->id,sensor->name,sensor->type,sensor->time,sensor->x_int,sensor->x_str);
     }
     // Função pública para obter sensor
@@ -217,6 +227,22 @@ namespace StorageManager {
             if (!isBlankOrEmpty(cd_cfg->ssid)) {
                 EventBus::post(EventDomain::STORAGE, EventId::STO_SSIDOK);
             }
+        }else if (evt == EventId::NET_STAGOTIP) {
+            ESP_LOGI(TAG, "Network IP recebido → montar páginas Alexa...");
+            Storage::initAlexa();
+        }
+    }
+    // --- Handler de inicio do MQTT ---
+    void onMQTTEvent(void*, esp_event_base_t, int32_t id, void*) {
+        EventId evt = static_cast<EventId>(id);
+        if (evt == EventId::MQT_CONNECTED) {
+            ESP_LOGI(TAG, "MQT_CONNECTED recebido → refazer registro de sensores...");
+            StartedMQTT = true;
+            Storage::loadAllSensors();
+        }
+        if (evt == EventId::MQT_DISCONNECTED) {
+            ESP_LOGI(TAG, "MQT_DISCONNECTED recebido → suspender envio...");
+            StartedMQTT = false;
         }
     }
     // --- Enfileiramento de Requisições ---
@@ -283,30 +309,23 @@ namespace StorageManager {
                                     if (request.data_ptr && request.data_len == sizeof(DeviceDTO)) {
                                         DeviceDTO* device_dto = static_cast<DeviceDTO*>(request.data_ptr);
                                         std::string device_id_str(device_dto->id);
-                                        Device* existing_device = getMutableDeviceInternal(device_id_str);
-                                        if (existing_device) {
-                                            memcpy(existing_device, device_dto, sizeof(DeviceDTO));
-                                            Storage::saveDeviceFile(existing_device);
-                                            if (request.response_event_id != EventId::NONE){
-                                                EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.requester,sizeof(request.requester));
-                                            }
-                                            ESP_LOGI(TAG, "Dispositivo '%s' atualizado na PSRAM e salvo na flash. Status: %s", device_id_str.c_str(), esp_err_to_name(err));
-                                        } else {
-                                            ESP_LOGI(TAG,"SAVE DEVICE_DATA: Disp '%s' não encontrado na PSRAM. Alocando e registrando novo dispositivo.",device_id_str.c_str());
-                                            Device* new_device_ptr = (Device*)heap_caps_malloc(sizeof(Device), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                                            if (!new_device_ptr) {
-                                                ESP_LOGE(TAG, "SAVE DEVICE_DATA: Falha ao alocar memória para novo dispositivo '%s' na PSRAM.", device_id_str.c_str());
-                                            } else {
-                                                memcpy(new_device_ptr, device_dto, sizeof(DeviceDTO));
-                                                registerDevice(new_device_ptr); 
-                                                Storage::saveDeviceFile(new_device_ptr);
-                                                if (request.response_event_id != EventId::NONE) {
-                                                    EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.requester,sizeof(request.requester));
-                                                }
-                                                ESP_LOGI(TAG, "Novo disp '%s' alocado na PSRAM, registrado e salvo na flash. Status: %s", device_id_str.c_str(), esp_err_to_name(err));
-                                            }
+                                        Device* target_device = getMutableDeviceInternal(device_id_str);
+                                        bool is_new_device = false;
+                                        if (!target_device) {
+                                            ESP_LOGI(TAG,"DEVICE_DATA: Disp '%s' não encontrado. Registrando novo dispositivo.",device_id_str.c_str());
+                                            target_device = (Device*)heap_caps_malloc(sizeof(Device), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                                            if(!target_device){ESP_LOGE(TAG,"DEVICE_DATA: Falha ao alocar novo disp. '%s'.",device_id_str.c_str());break;}
+                                            is_new_device = true;
                                         }
-                                    }else{ESP_LOGE(TAG, "SAVE DEVICE_DATA: Dados inválidos ou tamanho incorreto.");}
+                                        memcpy(target_device, device_dto, sizeof(DeviceDTO));
+                                        if (is_new_device) {registerDevice(target_device);}
+                                        Storage::saveDeviceFile(target_device);
+                                        if (request.response_event_id != EventId::NONE) {
+                                            EventBus::post(EventDomain::STORAGE, request.response_event_id, &request.requester, sizeof(request.requester));
+                                        }
+                                        if(is_new_device){ESP_LOGI(TAG, "Novo disp '%s' registrado. Status: %s",device_id_str.c_str(),esp_err_to_name(err));}
+                                        else{ESP_LOGI(TAG, "Disp '%s' atualizado. Status: %s",device_id_str.c_str(),esp_err_to_name(err));}
+                                    }else{ESP_LOGE(TAG, "DEVICE_DATA: Dados inválidos ou tamanho incorreto.");}
                                     break;
                                 }
                                 case StorageStructType::SENSOR_DATA: 
@@ -314,31 +333,29 @@ namespace StorageManager {
                                     if (request.data_ptr && request.data_len == sizeof(SensorDTO)) {
                                         SensorDTO* sensor_dto = static_cast<SensorDTO*>(request.data_ptr);
                                         std::string sensor_id_str(sensor_dto->id);
-                                        Sensor* existing_sensor = getMutableSensorInternal(sensor_id_str);
-                                        if (existing_sensor) {
-                                            memcpy(existing_sensor, sensor_dto, sizeof(SensorDTO));
-                                            Storage::saveSensorFile(existing_sensor);
-                                            if (request.response_event_id != EventId::NONE) {
-                                                EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.requester,sizeof(request.requester));
-                                            }
-                                            ESP_LOGI(TAG, "Sensor '%s' atualizado na PSRAM e salvo na flash. Status: %s", sensor_id_str.c_str(), esp_err_to_name(err));
-                                        } else {
-                                            ESP_LOGI(TAG, "SAVE SENSOR_DATA: Sensor '%s' não encontrado na PSRAM. Alocando e registrando novo sensor.", sensor_id_str.c_str());
-                                            Sensor* new_sensor_ptr = (Sensor*)heap_caps_malloc(sizeof(Sensor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                                            if (!new_sensor_ptr) {
-                                                ESP_LOGE(TAG, "SAVE SENSOR_DATA: Falha ao alocar memória para novo sensor '%s' na PSRAM.", sensor_id_str.c_str());
-                                            } else {
-                                                memcpy(new_sensor_ptr, sensor_dto, sizeof(SensorDTO));
-                                                registerSensor(new_sensor_ptr); 
-                                                Storage::saveSensorFile(new_sensor_ptr);
-                                                if (request.response_event_id != EventId::NONE) {
-                                                    EventBus::post(EventDomain::STORAGE,request.response_event_id,&request.requester,sizeof(request.requester));
-                                                }
-                                                ESP_LOGI(TAG,"Novo sensor '%s' alocado na PSRAM, registrado e salvo na flash. Status: %s",sensor_id_str.c_str(),esp_err_to_name(err));
+                                        Sensor* target_sensor = getMutableSensorInternal(sensor_id_str);
+                                        bool is_new_sensor = false;
+                                        bool name_changed = false;
+                                        if (!target_sensor) {
+                                            ESP_LOGI(TAG,"SENSOR_DATA: Sensor '%s' não encontrado. Registrando novo sensor.", sensor_id_str.c_str());
+                                            target_sensor = (Sensor*)heap_caps_malloc(sizeof(Sensor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                                            if(!target_sensor){ESP_LOGE(TAG,"SENSOR_DATA: Falha ao alocar novo sensor '%s'.", sensor_id_str.c_str());break;}
+                                            is_new_sensor = true;
+                                        }else{
+                                            if (strncmp(target_sensor->name,sensor_dto->name,sizeof(target_sensor->name))!=0){
+                                                name_changed = true;
+                                                ESP_LOGI(TAG,"SENSOR_DATA:Sensor '%s' mudou de '%s' para '%s'.",sensor_id_str.c_str(),target_sensor->name,sensor_dto->name);
                                             }
                                         }
-                                    }else{ESP_LOGE(TAG, "SAVE DEVICE_DATA: Dados inválidos ou tamanho incorreto.");}
-                                    break;
+                                        memcpy(target_sensor, sensor_dto, sizeof(SensorDTO));
+                                        Storage::saveSensorFile(target_sensor);
+                                        if (request.response_event_id != EventId::NONE) {
+                                            EventBus::post(EventDomain::STORAGE, request.response_event_id, &request.requester, sizeof(request.requester));
+                                        }
+                                        if (is_new_sensor || name_changed){registerSensor(target_sensor);}
+                                        else{ESP_LOGI(TAG,"Sensor '%s' atualizado. Status: %s",sensor_id_str.c_str(),esp_err_to_name(err));}
+                                    }else{ESP_LOGE(TAG, "SENSOR_DATA: Dados inválidos ou tamanho incorreto.");}
+                                    break;                                    
                                 }
                                 case StorageStructType::AUTOMA_DATA: {
                                     ESP_LOGI(TAG, "Salvando AUTOMA_DATA");
@@ -415,26 +432,26 @@ namespace StorageManager {
         }
         scanCache->networks_html_ptr[0] = '\0';
         ESP_LOGI(TAG, "Buffer HTML para WifiScanCache alocado na PSRAM.");
-        // 3. Inicialização de IDConfig com MAC e ID do dispositivo (não persistido)
+        // 2. Inicialização de IDConfig com MAC e ID do dispositivo (não persistido)
         uint8_t mac[6];
         esp_read_mac(mac, ESP_MAC_WIFI_STA);
         snprintf(id_cfg->mac, sizeof(id_cfg->mac), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         snprintf(id_cfg->id, sizeof(id_cfg->id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         ESP_LOGI(TAG, "IDConfig inicializado com MAC: %s, ID: %s", id_cfg->mac, id_cfg->id);
-        // 4. Montagem do sistema de arquivos (LittleFS)
+        // 3. Montagem do sistema de arquivos (LittleFS)
         ESP_LOGI(TAG, "Montando Storage físico (LittleFS)...");
         esp_err_t ret = Storage::init();
         if (ret != ESP_OK) { ESP_LOGE(TAG, "Falha ao inicializar Storage físico"); return ret; }
         ESP_LOGI(TAG, "Storage físico inicializado.");
-        // 5. Criação da fila de requisições
+        // 4. Criação da fila de requisições
         s_storage_queue = xQueueCreate(10, sizeof(StorageRequest));
         if (s_storage_queue == nullptr) { ESP_LOGE(TAG, "Falha ao criar fila de armazenamento!"); return ESP_FAIL; }
         ESP_LOGI(TAG, "Fila de armazenamento criada.");
-        // 6. Criação do mutex para acesso à flash
+        // 5. Criação do mutex para acesso à flash
         s_flash_mutex = xSemaphoreCreateMutex();
         if (s_flash_mutex == nullptr) { ESP_LOGE(TAG, "Falha ao criar mutex da flash!"); vQueueDelete(s_storage_queue); return ESP_FAIL; }
         ESP_LOGI(TAG, "Mutex da flash criado.");
-        // 7. Criação da task de armazenamento
+        // 6. Criação da task de armazenamento
         BaseType_t xReturned = xTaskCreate(storage_task, "storage_task", 4096, nullptr, 5, nullptr);
         if (xReturned != pdPASS) {
             ESP_LOGE(TAG, "Falha ao criar task de storage!");
@@ -443,9 +460,12 @@ namespace StorageManager {
             return ESP_FAIL;
         }
         ESP_LOGI(TAG, "Task de storage criada.");
-        // 8. Registro do handler de eventos de rede
+        // 7. Registro do handler de eventos de rede
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         ESP_LOGI(TAG, "Handler de eventos de rede registrado.");
+        // 8. Registro do handler de eventos do MQTT
+        EventBus::regHandler(EventDomain::MQTT, &onMQTTEvent, nullptr);
+        ESP_LOGI(TAG, "Handler de eventos MQTT registrado.");
         // 9. Posta evento de ready
         EventBus::post(EventDomain::READY, EventId::STO_READY);
         ESP_LOGI(TAG, "→ STO_READY publicado");

@@ -156,75 +156,47 @@ namespace DeviceManager{
         if (screen_num == 2) {
             const char *ip_ptr = nullptr;
             if (StorageManager::id_cfg) ip_ptr = StorageManager::id_cfg->ip;
-            if (ip_ptr && ip_ptr[0] != '\0') {
-                payload = std::string("http://") + ip_ptr;
-            } else {
+            if (ip_ptr && ip_ptr[0] != '\0') {payload = std::string("http://") + ip_ptr;}
+            else {
                 // fallback para SSID se IP não disponível
                 const char* central_name_ptr = nullptr;
-                if (StorageManager::cfg) central_name_ptr = StorageManager::cfg->central_name;
-                if (!central_name_ptr || central_name_ptr[0] == '\0') {
-                    ESP_LOGW(TAG, "generate_and_draw_wifi_qr_to_screen_n: IP ausente e SSID vazio; abortando");
-                    return;
-                }
+                if(StorageManager::cfg) central_name_ptr = StorageManager::cfg->central_name;
+                if(!central_name_ptr||central_name_ptr[0]=='\0'){ESP_LOGW(TAG,"QR_to_screen:IP ausente e SSID vazio; abortando");return;}
                 auto escape_ssid = [](const std::string &in)->std::string {
                     std::string out; out.reserve(in.size());
-                    for (char c : in) {
-                        if (c == '\\' || c == ';' || c == ',' || c == ':' || c == '"') out.push_back('\\');
-                        out.push_back(c);
-                    }
+                    for(char c:in){if(c=='\\'||c==';'||c==','||c==':'||c=='"') out.push_back('\\');out.push_back(c);}
                     return out;
                 };
                 payload = "WIFI:T:nopass;S:" + escape_ssid(std::string(central_name_ptr)) + ";;";
             }
         }else if (screen_num == 1) {
             const char* central_name_ptr = nullptr;
-            if (StorageManager::cfg) central_name_ptr = StorageManager::cfg->central_name;
-            if (!central_name_ptr || central_name_ptr[0] == '\0') {
-                ESP_LOGW(TAG, "generate_and_draw_wifi_qr_to_screen_n: SSID vazio; abortando");
-                return;
-            }
+            if(StorageManager::cfg) central_name_ptr = StorageManager::cfg->central_name;
+            if(!central_name_ptr||central_name_ptr[0]=='\0'){ESP_LOGW(TAG,"QR_to_screen: SSID vazio; abortando");return;}
             auto escape_ssid = [](const std::string &in)->std::string {
                 std::string out; out.reserve(in.size());
-                for (char c : in) {
-                    if (c == '\\' || c == ';' || c == ',' || c == ':' || c == '"') out.push_back('\\');
-                    out.push_back(c);
-                }
+                for(char c:in){if(c=='\\'||c==';'||c==','||c==':'||c=='"') out.push_back('\\');out.push_back(c);}
                 return out;
             };
             payload = "WIFI:T:nopass;S:" + escape_ssid(std::string(central_name_ptr)) + ";;";
-        } else {
-            ESP_LOGW(TAG, "generate_and_draw_wifi_qr_to_screen_n: apenas screen 1 (AP) ou 2 (IP) suportadas, recebido=%u", screen_num);
-            return;
-        }
+        } else {ESP_LOGW(TAG, "QR_to_screen: apenas screen 1 (AP) ou 2 (IP) suportadas, recebido=%u", screen_num);return;}
         ESP_LOGI(TAG,"QRCODE: payload='%s'", payload.c_str());
         const size_t qbuf_len = (size_t)qrcodegen_BUFFER_LEN_FOR_VERSION(maxVersion);
         uint8_t *qrcode = (uint8_t*) heap_caps_malloc(qbuf_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         uint8_t *temp   = (uint8_t*) heap_caps_malloc(qbuf_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (!qrcode || !temp) {
-            ESP_LOGE(TAG, "generate_and_draw_wifi_qr_from_storage: malloc buffers qrcode/temp falhou (len=%u)", (unsigned)qbuf_len);
-            if (qrcode) heap_caps_free(qrcode);
-            if (temp)   heap_caps_free(temp);
-            return;
-        }
+        if(!qrcode||!temp){ESP_LOGE(TAG,"QR: malloc falhou (len=%u)",(unsigned)qbuf_len);if(qrcode)heap_caps_free(qrcode);if(temp)heap_caps_free(temp);return;}
         memset(qrcode,0,qbuf_len);
         memset(temp,0,qbuf_len);
         bool ok = qrcodegen_encodeText(payload.c_str(), temp, qrcode, ecl, minVersion, maxVersion, mask, boostEcl);
-        if (!ok) {
-            ESP_LOGE(TAG, "qrcodegen_encodeText falhou (payload talvez muito grande)");
-            heap_caps_free(qrcode);
-            heap_caps_free(temp);
-            return;
-        }
+        if(!ok){ESP_LOGE(TAG, "QR falhou (payload muito grande)");heap_caps_free(qrcode);heap_caps_free(temp);return;}
         const int modules=qrcodegen_getSize(qrcode);
-        // const int margin_modules=1;
         const int margin_modules=0;
         const int size_with_margin=modules+2*margin_modules;
-        // const int top_band=16+1;
         const int top_band=16;
         const int available_h=63-top_band;
         const int available_w=OLED_WIDTH;
         int scale=std::min(available_w/size_with_margin,available_h/size_with_margin);
-        if(scale<1){ESP_LOGE(TAG,"QRCODE ´rea insuficiente para QR (modules=%d need=%dpx each) scale=%d",modules,size_with_margin,scale);return;}
+        if(scale<1){ESP_LOGE(TAG,"QRCODE area insuficiente para QR (modules=%d need=%dpx each) scale=%d",modules,size_with_margin,scale);return;}
         const int qr_pixel_w=size_with_margin*scale;
         const int qr_pixel_h=size_with_margin*scale;
         const int x0=(OLED_WIDTH-qr_pixel_w)/2;
@@ -258,14 +230,9 @@ namespace DeviceManager{
             draw_icon((uint8_t)screen_num,icon_buf,(uint16_t)icon_w,(uint16_t)icon_h,(uint16_t)x0,(uint16_t)y0);
             xSemaphoreGive(buffer_mutex);
             display_dirty[screen_num]=true;
-            if(batch_timer){
-                esp_timer_stop(batch_timer);
-                esp_timer_start_once(batch_timer,(uint64_t)BATCH_MS * 1000ULL);
-            }
+            if(batch_timer){esp_timer_stop(batch_timer);esp_timer_start_once(batch_timer,(uint64_t)BATCH_MS * 1000ULL);}
             ESP_LOGI(TAG, "QRCode desenhado em screen_buffers[%u] @(%d,%d) %dx%d", screen_num, x0, y0, icon_w, icon_h);
-        } else {
-            ESP_LOGW(TAG, "QRCODE: timeout ao obter buffer_mutex");
-        }
+        } else {ESP_LOGW(TAG, "QRCODE: timeout ao obter buffer_mutex");}
         heap_caps_free(icon_buf);
         heap_caps_free(qrcode);
         heap_caps_free(temp);
@@ -290,7 +257,7 @@ namespace DeviceManager{
         if(stored){memcpy(&sensor_dto,stored,sizeof(SensorDTO));}
         else {
             strncpy(sensor_dto.id,"4",sizeof(sensor_dto.id)-1);
-            strncpy(sensor_dto.name,"Sensor da Central",sizeof(sensor_dto.name)-1);
+            snprintf(sensor_dto.name,sizeof(sensor_dto.name),"%s","Sensor da Central");
             sensor_dto.type=0;
             sensor_dto.time=0;
             sensor_dto.x_int=0;
@@ -339,7 +306,7 @@ namespace DeviceManager{
             if(sensor_ptr){memcpy(&sensor_dto,sensor_ptr,sizeof(SensorDTO));have_stored=true;}
             else{
                 strncpy(sensor_dto.id,"4",sizeof(sensor_dto.id)-1);
-                strncpy(sensor_dto.name,"Sensor da Central",sizeof(sensor_dto.name)-1);
+                snprintf(sensor_dto.name,sizeof(sensor_dto.name),"%s","Sensor da Central");
                 sensor_dto.type=0;
                 sensor_dto.time=0;
                 sensor_dto.x_int=0;
@@ -521,10 +488,7 @@ namespace DeviceManager{
     static void enqueue_draw_cmd(int command,int status) {
         DrawCmd d={.command=command,.status=status};
         xQueueSend(draw_queue,&d,pdMS_TO_TICKS(20));
-        if(batch_timer){
-            esp_timer_stop(batch_timer);
-            esp_timer_start_once(batch_timer, (uint64_t)BATCH_MS * 1000ULL);
-        }
+        if(batch_timer){esp_timer_stop(batch_timer);esp_timer_start_once(batch_timer, (uint64_t)BATCH_MS * 1000ULL);}
     }
     static void display_event_task(void *pv) {
         (void)pv;
