@@ -11,15 +11,15 @@ namespace DeviceManager{
     const bool boostEcl=true;
     const qrcodegen_Ecc ecl=qrcodegen_Ecc_MEDIUM;
     // buzzer
-    #define BUZZER_GPIO      GPIO_NUM_1
+    #define BUZZER_GPIO      GPIO_NUM_19
     #define BUZZER_ACTIVE    0
     #define BUZZER_INACTIVE  1
     #define BUZZER_MS        100
     static esp_timer_handle_t buzzer_timer=nullptr;
     // display
     #define OLED_I2C_PORT    I2C_NUM_0
-    #define OLED_I2C_SDA     GPIO_NUM_17
-    #define OLED_I2C_SCL     GPIO_NUM_18
+    #define OLED_I2C_SDA     GPIO_NUM_17  // GPIO_NUM_18
+    #define OLED_I2C_SCL     GPIO_NUM_18  // GPIO_NUM_17
     #define OLED_WIDTH       128
     #define OLED_HEIGHT      64
     #define OLED_ADDR        0x3C

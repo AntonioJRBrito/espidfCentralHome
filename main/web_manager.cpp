@@ -55,8 +55,6 @@ namespace WebManager {
             if (sockfd >= 0) {
                 char ipstr[INET6_ADDRSTRLEN] = {0};
                 uint16_t port = 0;
-
-                // use sockaddr_storage para cobrir IPv4 e IPv6
                 struct sockaddr_storage addr;
                 socklen_t addr_len = sizeof(addr);
                 if (getpeername(sockfd, (struct sockaddr*)&addr, &addr_len) == 0) {
@@ -326,14 +324,15 @@ namespace WebManager {
         config.lru_purge_enable = true;
         config.uri_match_fn = httpd_uri_match_wildcard;
         config.max_uri_handlers = 40;
-        config.max_open_sockets = 12;
-        config.backlog_conn = 8;
+        config.max_open_sockets = 20;
+        config.backlog_conn = 12;
         config.task_priority = tskIDLE_PRIORITY + 2;
         config.stack_size = 8192; 
         if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
         else{ESP_LOGI(TAG, "Servidor HTTP executando");}
         // 1. Rotas estáticas principais (HTML/JSON/CSS/JS/IMG)
         registerUriHandler("/",HTTP_GET,root_handler);
+        registerUriHandler("/teste.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/agenda.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/automacao.html",HTTP_GET,serve_static_file_handler);
