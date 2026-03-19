@@ -1,0 +1,33 @@
+#pragma once
+#include "esp_event.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <cstring>
+#include "unordered_map"
+
+enum class EventDomain : uint8_t {NETWORK,READY,DEVICE,SOCKET,WEB,HUE,BROKER,MQTT,AUTOMATION,OTA,STORAGE,BLE};
+enum class EventId : int32_t {
+    NONE=0,READY_ALL,
+    NET_READY,NET_APDISCONNECTED,NET_APCONNECTED,NET_IFOK,NET_TEST,NET_LISTQRY,NET_LISTOK,NET_LISTFAIL,NET_APCLIGOTIP,
+    NET_STADISCONNECTED,NET_STACONNECTED,NET_STASTARTED,NET_STAGOTIP,NET_APCLICONNECTED,NET_APCLIDISCONNECTED,NET_STASTOPPED,
+    NET_TESTFAILTRY,NET_TESTFAILREVERT,NET_SUSPCLIENT,NET_RTCSYNCED,NET_RTCDEVREQUEST,NET_RTCDEVSUPLY,NET_RTCNOSYNCED,NET_RTCSCHSUPLY,
+    NET_RTCSCHREQUEST,
+    RTC_READY,
+    DEV_READY,DEV_STARTED,
+    SOC_READY,SOC_STARTED,
+    WEB_READY,WEB_STARTED,
+    HUE_READY,
+    BRK_READY,BRK_DEVICERECEIVED,BRK_SENSORRECEIVED,BRK_SENSORACT,BRK_PUBLISHREQUEST,BRK_LISTENING,
+    MQT_READY,MQT_CONNECTED,MQT_DISCONNECTED,MQT_ERROR,
+    AUT_READY,AUT_DETECTSENSOR,
+    STO_READY,STO_SSIDOK,STO_QUERY,STO_UPDATE,STO_CONFIGSAVED,STO_CREDENTIALSAVED,STO_DEVICESAVED,STO_SENSORSAVED,STO_SENSORATU,STO_SENSORCAD,
+    BLE_READY
+};
+struct EventPayload {void* data; size_t size;};
+namespace EventBus {
+    esp_err_t init();
+    esp_err_t post(EventDomain domain, EventId id, void* data = nullptr, size_t size = 0, TickType_t timeout = 0);
+    esp_err_t regHandler(EventDomain domain, esp_event_handler_t handler, void* arg = nullptr);
+    esp_err_t unregHandler(EventDomain domain, esp_event_handler_t handler);
+}
