@@ -1,0 +1,10 @@
+key,type,encoding,value
+values,namespace,,
+1_t,data,u8,10
+1_s,data,u8,0
+2_t,data,u8,10
+2_s,data,u8,0
+3_t,data,u8,10
+3_s,data,u8,0
+4_t,data,i8,10
+4_s,data,u8,0

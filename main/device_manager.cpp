@@ -279,7 +279,7 @@ namespace DeviceManager{
         requester.requester=4;
         requester.request_int=4;
         requester.resquest_type=RequestTypes::REQUEST_INT;
-        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
+        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_STTM,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
         ESP_LOGI(TAG, "init_sensor_timer_cb: SAVE enfileirado sensor id=4 estado=%d", sensor_dto.x_int);
         if(init_sensor_timer){esp_timer_delete(init_sensor_timer);init_sensor_timer=nullptr;}
     }
@@ -327,7 +327,7 @@ namespace DeviceManager{
             requester.requester=4;
             requester.request_int=4;
             requester.resquest_type=RequestTypes::REQUEST_INT;
-            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
+            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_STTM,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
             ESP_LOGI(TAG, "sensor_task: SAVE enfileirado para sensor id=4 x_int=%u",sensor_dto.x_int);
             AutomationTaskParams params;
             const char num_sensor[]="4";
@@ -349,7 +349,7 @@ namespace DeviceManager{
             requester.requester=dev_id;
             requester.request_int=dev_id;
             requester.resquest_type=RequestTypes::REQUEST_INT;
-            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
         }
     }
     static void handlerService(){
@@ -388,7 +388,7 @@ namespace DeviceManager{
             requester.requester=dev_id;
             requester.request_int=dev_id;
             requester.resquest_type=RequestTypes::REQUEST_INT;
-            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+            StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
         }
     }
     // display

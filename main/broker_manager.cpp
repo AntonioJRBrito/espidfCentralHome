@@ -257,56 +257,101 @@ namespace BrokerManager {
                     if (topic.rfind(expected_topic_prefix, 0) == 0 && topic.length() > expected_topic_prefix.length()) {
                         std::string received_device_id_from_topic = topic.substr(expected_topic_prefix.length());
                         if (received_device_id_from_topic == client_devsen_id) {
-                            // O payload pode ser REG, INF, SEN, SNA, ACT:<n>, BRG:<n>
-                            if (payload == "REG") {
-                                ESP_LOGI(TAG, "Payload REG recebido de '%s'.", client_devsen_id.c_str());
+                            // O payload pode ser REG, INF, SEN, SNA, STM, STA, ACT, BRG
+                            if(payload=="REG"){
+                                ESP_LOGI(TAG,"Payload REG recebido de '%s'.",client_devsen_id.c_str());
                                 publish_message_to_device(received_device_id_from_topic,"INF");
-                            } else if (payload.rfind("INF:", 0) == 0) {
-                                ESP_LOGI(TAG, "Payload INF recebido de '%s'.", client_devsen_id.c_str());
+                            }else if(payload.rfind("INF:", 0) == 0) {
+                                ESP_LOGI(TAG, "Payload INF recebido de '%s'.",client_devsen_id.c_str());
                                 std::string payload_without_prefix = payload.substr(4);
                                 std::vector<std::string> parts = StorageManager::splitString(payload_without_prefix, ':');
-                                if(parts.size()!=5){ESP_LOGI(TAG,"INF inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
+                                if(parts.size()!=5){ESP_LOGI(TAG,"INF inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());break;}
                                 DeviceDTO device_dto;
                                 strncpy(device_dto.id, client_devsen_id.c_str(), sizeof(device_dto.id) - 1);
                                 device_dto.id[sizeof(device_dto.id) - 1] = '\0';
-                                if(!StorageManager::atribuirInt(device_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");return;}
+                                if(!StorageManager::atribuirInt(device_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");break;}
                                 strncpy(device_dto.name, parts[1].c_str(), sizeof(device_dto.name) - 1);
                                 device_dto.name[sizeof(device_dto.name) - 1] = '\0';
-                                if(!StorageManager::atribuirInt(device_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");return;}
-                                if(!StorageManager::atribuirInt(device_dto.status,parts[3])){ESP_LOGI(TAG,"status inválido");return;}
-                                if(!StorageManager::atribuirInt(device_dto.x_int,parts[4])){ESP_LOGI(TAG,"x_int inválido");return;}
-                                ESP_LOGI(TAG, "INF_HANDLER:DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(Status=%u)(X_Int=%u)(X_Str='%s')",device_dto.id,device_dto.name,device_dto.type,device_dto.time,device_dto.status,device_dto.x_int,device_dto.x_str);
+                                if(!StorageManager::atribuirInt(device_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");break;}
+                                if(!StorageManager::atribuirInt(device_dto.status,parts[3])){ESP_LOGI(TAG,"status inválido");break;}
+                                if(!StorageManager::atribuirInt(device_dto.x_int,parts[4])){ESP_LOGI(TAG,"x_int inválido");break;}
+                                ESP_LOGI(TAG,"INF: DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(Status=%u)(X_Int=%u)(X_Str='%s')",device_dto.id,device_dto.name,device_dto.type,device_dto.time,device_dto.status,device_dto.x_int,device_dto.x_str);
                                 RequestSave requester;
                                 strncpy(requester.request_char,device_dto.id,sizeof(device_dto.id)-1);
                                 requester.request_char[sizeof(requester.request_char)-1]='\0';
                                 requester.requester=client_fd;
                                 requester.resquest_type=RequestTypes::REQUEST_CHAR;
                                 esp_err_t device_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
-                                if (device_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Device '%s'", device_dto.id);}
-                                else {ESP_LOGI(TAG, "INF_HANDLER: Requisição SAVE para Device '%s' enfileirada com sucesso.", device_dto.id);}
-                            } else if (payload.rfind("SEN:", 0) == 0) {
+                                if(device_ret != ESP_OK){ESP_LOGE(TAG,"INF: Falha ao enfileirar requisição SAVE para Device '%s'",device_dto.id);}
+                                else{ESP_LOGI(TAG,"INF: Requisição SAVE para Device '%s' enfileirada com sucesso.",device_dto.id);}
+                            }else if(payload.rfind("STA:",0)==0){
+                                ESP_LOGI(TAG, "Payload STA recebido de '%s'.", client_devsen_id.c_str());
+                                std::string inform = payload.substr(4);
+                                if(inform!="0"&&inform!="1"){ESP_LOGW(TAG,"STA inválido: %s",inform.c_str());}
+                                else{
+                                    uint8_t status;
+                                    status=(uint8_t)std::stoi(inform);
+                                    DeviceDTO device_dto;
+                                    memset(&device_dto,0,sizeof(device_dto));
+                                    const Device* device_ptr=nullptr;
+                                    device_ptr=StorageManager::getDevice(client_devsen_id);
+                                    if(device_ptr){
+                                        memcpy(&device_dto,device_ptr,sizeof(DeviceDTO));
+                                        device_dto.status=status;
+                                        RequestSave requester;
+                                        strncpy(requester.request_char,device_dto.id,sizeof(device_dto.id)-1);
+                                        requester.request_char[sizeof(requester.request_char)-1]='\0';
+                                        requester.requester=client_fd;
+                                        requester.resquest_type=RequestTypes::REQUEST_CHAR;
+                                        esp_err_t device_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                                        if(device_ret != ESP_OK){ESP_LOGE(TAG,"STA: Falha ao enfileirar requisição SAVE para Device '%s'",device_dto.id);}
+                                        else {ESP_LOGI(TAG,"STA: Requisição SAVE para Device '%s' enfileirada com sucesso.",device_dto.id);}
+                                    }
+                                }
+                            }else if(payload.rfind("BRG:",0)==0){
+                                ESP_LOGI(TAG,"Payload BRG recebido de '%s'.",client_devsen_id.c_str());
+                                uint8_t bright;
+                                if(!StorageManager::atribuirInt(bright,payload.substr(4))){ESP_LOGI(TAG,"time inválido");break;}
+                                DeviceDTO device_dto;
+                                memset(&device_dto,0,sizeof(device_dto));
+                                const Device* device_ptr=nullptr;
+                                device_ptr=StorageManager::getDevice(client_devsen_id);
+                                if(device_ptr){
+                                    memcpy(&device_dto,device_ptr,sizeof(DeviceDTO));
+                                    device_dto.time=bright;
+                                    RequestSave requester;
+                                    strncpy(requester.request_char,device_dto.id,sizeof(device_dto.id)-1);
+                                    requester.request_char[sizeof(requester.request_char)-1]='\0';
+                                    requester.requester=client_fd;
+                                    requester.resquest_type=RequestTypes::REQUEST_CHAR;
+                                    esp_err_t device_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                                    if(device_ret != ESP_OK){ESP_LOGE(TAG,"BRG: Falha ao enfileirar requisição SAVE para Device '%s'",device_dto.id);}
+                                    else {ESP_LOGI(TAG,"BRG: Requisição SAVE para Device '%s' enfileirada com sucesso.",device_dto.id);}
+                                }
+                            }else if(payload.rfind("SEN:",0)==0){
                                 ESP_LOGI(TAG, "Payload SEN recebido de '%s': %s", client_devsen_id.c_str(), payload.c_str());
                                 std::string payload_without_prefix = payload.substr(4);
                                 std::vector<std::string> parts = StorageManager::splitString(payload_without_prefix, ':');
-                                if(parts.size()!=4){ESP_LOGE(TAG,"SEN inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());return;}
+                                if(parts.size()!=4){ESP_LOGE(TAG,"SEN inválido: %s. Recebido %zu partes.",payload_without_prefix.c_str(),parts.size());break;}
                                 SensorDTO sensor_dto;
                                 strncpy(sensor_dto.id, client_devsen_id.c_str(), sizeof(sensor_dto.id) - 1);
                                 sensor_dto.id[sizeof(sensor_dto.id) - 1] = '\0';
-                                if(!StorageManager::atribuirInt(sensor_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");return;}
+                                if(!StorageManager::atribuirInt(sensor_dto.type,parts[0])){ESP_LOGI(TAG,"type inválido");break;}
                                 strncpy(sensor_dto.name, parts[1].c_str(), sizeof(sensor_dto.name) - 1);
                                 sensor_dto.name[sizeof(sensor_dto.name) - 1] = '\0';
-                                if(!StorageManager::atribuirInt(sensor_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");return;}
-                                if(!StorageManager::atribuirInt(sensor_dto.x_int,parts[3])){ESP_LOGI(TAG,"x_int inválido");return;}
-                                ESP_LOGI(TAG, "SEN_HANDLER:DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(X_Int=%u)(X_Str='%s')",sensor_dto.id,sensor_dto.name,sensor_dto.type,sensor_dto.time,sensor_dto.x_int,sensor_dto.x_str);
+                                if(!StorageManager::atribuirInt(sensor_dto.time,parts[2])){ESP_LOGI(TAG,"time inválido");break;}
+                                if(!StorageManager::atribuirInt(sensor_dto.x_int,parts[3])){ESP_LOGI(TAG,"x_int inválido");break;}
+                                ESP_LOGI(TAG, "SEN: DTO para (ID '%s')(Nome='%s')(Tipo=%u)(Tempo=%u)(X_Int=%u)(X_Str='%s')",sensor_dto.id,sensor_dto.name,sensor_dto.type,sensor_dto.time,sensor_dto.x_int,sensor_dto.x_str);
                                 RequestSave requester;
                                 strncpy(requester.request_char,sensor_dto.id,sizeof(sensor_dto.id)-1);
                                 requester.request_char[sizeof(requester.request_char)-1]='\0';
                                 requester.requester=client_fd;
                                 requester.resquest_type=RequestTypes::REQUEST_CHAR;
                                 esp_err_t sensor_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
-                                if (sensor_ret != ESP_OK) {ESP_LOGE(TAG, "INF_HANDLER: Falha ao enfileirar requisição SAVE para Sensor '%s'", sensor_dto.id);}
-                                else {ESP_LOGI(TAG, "INF_HANDLER: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
-                            } else if (payload.rfind("SNA:", 0) == 0) {
+                                if(sensor_ret != ESP_OK){ESP_LOGE(TAG, "SEN: Falha ao enfileirar requisição SAVE para Sensor '%s'", sensor_dto.id);}
+                                else{ESP_LOGI(TAG,"SEN: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
+                            }else if(payload.rfind("SNA:",0)==0){
+                                ESP_LOGI(TAG, "Payload SNA recebido de '%s'.", client_devsen_id.c_str());
                                 std::string inform = payload.substr(4);
                                 if(inform!="0"&&inform!="1"){ESP_LOGW(TAG,"SNA inválido: %s",inform.c_str());}
                                 else{
@@ -329,13 +374,16 @@ namespace BrokerManager {
                                         requester.request_char[sizeof(requester.request_char)-1]='\0';
                                         requester.requester=client_fd;
                                         requester.resquest_type=RequestTypes::REQUEST_CHAR;
-                                        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
+                                        esp_err_t sensor_ret=StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_STTM,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
+                                        if(sensor_ret != ESP_OK){ESP_LOGE(TAG, "SNA: Falha ao enfileirar requisição SAVE para Sensor '%s'", sensor_dto.id);}
+                                        else{ESP_LOGI(TAG,"SNA: Requisição SAVE para Device '%s' enfileirada com sucesso.", sensor_dto.id);}
                                     }
                                     else{ESP_LOGW(TAG,"Sensor não cadastrado: %s",client_devsen_id.c_str());}
                                 }
-                            } else if (payload.rfind("STM:", 0) == 0) {
+                            }else if(payload.rfind("STM:",0)==0){
+                                ESP_LOGI(TAG, "Payload STM recebido de '%s'.", client_devsen_id.c_str());
                                 std::string inform = payload.substr(4);
-                                int time;
+                                int8_t time;
                                 if(!StorageManager::atribuirInt(time,inform)){ESP_LOGW(TAG,"STM inválido: %s",inform.c_str());}
                                 else{
                                     SensorDTO sensor_dto;
@@ -350,7 +398,7 @@ namespace BrokerManager {
                                         requester.request_char[sizeof(requester.request_char)-1]='\0';
                                         requester.requester=client_fd;
                                         requester.resquest_type=RequestTypes::REQUEST_CHAR;
-                                        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_DATA,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
+                                        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::SENSOR_STTM,&sensor_dto,sizeof(SensorDTO),requester,EventId::STO_SENSORSAVED);
                                     }
                                     else{ESP_LOGW(TAG,"Sensor não cadastrado: %s",client_devsen_id.c_str());}
                                 }

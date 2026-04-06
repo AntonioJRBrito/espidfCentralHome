@@ -9,17 +9,11 @@
             "problemMatcher": []
         },
         {
-            "label": "Flash APP0 Partition",
+            "label": "Flash NVS Partition",
             "type": "shell",
-            "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe",
-            "args": [
-                "${workspaceFolder}\\flash_app0.py"
-            ],
-            "problemMatcher": [],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            }
+            "command": "C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Lib\\site-packages\\esp_idf_nvs_partition_gen\\nvs_partition_gen.py generate nvs_data.csv build/nvs.bin 0x10000 && C:\\Users\\anton\\.espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe -m esptool --chip esp32s3 write_flash 0x00009000 build/nvs.bin",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
         }
     ]
 }

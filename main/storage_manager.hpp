@@ -77,7 +77,7 @@ struct Device {
     char id[MAX_ID_LEN];
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
-    uint16_t time;
+    uint8_t time;
     uint8_t status;
     char x_str[MAX_ID_LEN];
     uint8_t x_int;
@@ -87,7 +87,7 @@ struct DeviceDTO {
     char id[MAX_ID_LEN];
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
-    uint16_t time;
+    uint8_t time;
     uint8_t status;
     char x_str[MAX_ID_LEN];
     uint8_t x_int;
@@ -97,7 +97,7 @@ struct Sensor {
     char id[MAX_ID_LEN];
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
-    int16_t time;
+    int8_t time;
     uint8_t x_int;
     char x_str[MAX_ID_LEN];
     Sensor(){memset(id,0,sizeof(id));memset(name,0,sizeof(name));type=0;time=0;x_int=0;memset(x_str,0,sizeof(x_str));}
@@ -106,7 +106,7 @@ struct SensorDTO {
     char id[MAX_ID_LEN];
     char name[MAX_CENTRAL_NAME_LEN];
     uint8_t type;
-    int16_t time;
+    int8_t time;
     uint8_t x_int;
     char x_str[MAX_ID_LEN];
     SensorDTO(){memset(id,0,sizeof(id));memset(name,0,sizeof(name));type=0;time=0;x_int=0;memset(x_str,0,sizeof(x_str));}
@@ -145,7 +145,7 @@ struct PublishBrokerData {
     PublishBrokerData(const char* id_cstr,const char* p_cstr){memset(device_id,0,sizeof(device_id));memset(payload,0,sizeof(payload));strncpy(device_id,id_cstr,sizeof(device_id)-1);strncpy(payload,p_cstr,sizeof(payload)-1);device_id[sizeof(device_id)-1]='\0';payload[sizeof(payload)-1]='\0';}
 };
 enum class StorageCommand {SAVE,DELETE};
-enum class StorageStructType {CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA};
+enum class StorageStructType {CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA,SENSOR_STTM,DEVICE_STTM};
 enum class RequestTypes {REQUEST_NONE,REQUEST_INT,REQUEST_CHAR};
 struct RequestSave {
     int requester;

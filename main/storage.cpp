@@ -91,6 +91,26 @@ namespace Storage {
         StorageManager::registerPage(k, p_psram);
         ESP_LOGI(TAG, "Arquivo binário %s carregado: %zu bytes", k, read_sz);
     }
+    static int loadAttributeID(const std::string& id,const std::string& var,const std::string& type){
+        nvs_handle_t handle;
+        esp_err_t err = nvs_open("values", NVS_READONLY, &handle);
+        if(err != ESP_OK){ESP_LOGE(TAG, "Erro ao abrir NVS: %s", esp_err_to_name(err));return 0;}
+        char key[16];
+        snprintf(key, sizeof(key), "%s_%s", id.c_str(), var.c_str());
+        if(type=="i"){int8_t value=0;nvs_get_i8(handle,key,&value);nvs_close(handle);return (int)value;}
+        else{uint8_t value=0;nvs_get_u8(handle,key,&value);nvs_close(handle);return (int)value;}
+    }
+    static void saveAttributeID(const std::string& id, const std::string& var, const std::string& type, void* value) {
+        nvs_handle_t handle;
+        esp_err_t err = nvs_open("values", NVS_READWRITE, &handle);
+        if (err != ESP_OK) return;
+        char key[16];
+        snprintf(key, sizeof(key), "%s_%s", id.c_str(), var.c_str());
+        if(type=="i"){nvs_set_i8(handle,key,*(int8_t*)value);}
+        else{nvs_set_u8(handle,key,*(uint8_t*)value);}
+        nvs_commit(handle);
+        nvs_close(handle);
+    }
     static void loadDeviceFile(const std::string& stdPath, const std::string& deviceID) {
         const char* path = stdPath.c_str();
         ESP_LOGI(TAG, "disp para registrar: %s", deviceID.c_str());
@@ -109,14 +129,14 @@ namespace Storage {
             switch (index) {
                 case 0:strncpy(dev->name, line, sizeof(dev->name) - 1);dev->name[sizeof(dev->name) - 1] = '\0';break;
                 case 1:if(!StorageManager::atribuirInt(dev->type,line)){ESP_LOGI(TAG,"type inválido");fclose(f);return;};break;
-                case 2:if(!StorageManager::atribuirInt(dev->time,line)){ESP_LOGI(TAG,"time inválido");fclose(f);return;};break;
-                case 3:if(!StorageManager::atribuirInt(dev->status,line)){ESP_LOGI(TAG,"status inválido");fclose(f);return;};break;
-                case 4:strncpy(dev->x_str, line, sizeof(dev->x_str) - 1);dev->x_str[sizeof(dev->x_str) - 1] = '\0';break;
-                case 5:if(!StorageManager::atribuirInt(dev->x_int,line)){ESP_LOGI(TAG,"x_int inválido");fclose(f);return;};break;
+                case 2:strncpy(dev->x_str, line, sizeof(dev->x_str) - 1);dev->x_str[sizeof(dev->x_str) - 1] = '\0';break;
+                case 3:if(!StorageManager::atribuirInt(dev->x_int,line)){ESP_LOGI(TAG,"x_int inválido");fclose(f);return;};break;
             }
             ++index;
         }
         fclose(f);
+        dev->time=(uint8_t)loadAttributeID(deviceID,"t","u");
+        dev->status=(uint8_t)loadAttributeID(deviceID,"s","u");
         StorageManager::registerDevice(dev);
     }
     void loadAllDevices(){
@@ -142,12 +162,19 @@ namespace Storage {
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
         fprintf(f, "%s\n", device->name);
         fprintf(f, "%u\n", device->type);
-        fprintf(f, "%u\n", device->time);
-        fprintf(f, "%u\n", device->status);
         fprintf(f, "%s\n", device->x_str);
         fprintf(f, "%u\n", device->x_int);
         fclose(f);
+        saveAttributeID(std::string(device->id),"t","u",&device->time);
+        saveAttributeID(std::string(device->id),"s","u",&device->status);
         ESP_LOGI(TAG, "Dispositivo '%s' salvo em %s", device->id, file_path);
+        return ESP_OK;
+    }
+    esp_err_t saveDeviceData(Device* device) {
+        if (!device) {ESP_LOGE(TAG, "Ponteiro de dispositivo nulo para salvar.");return ESP_ERR_INVALID_ARG;}
+        saveAttributeID(std::string(device->id),"t","u",&device->time);
+        saveAttributeID(std::string(device->id),"s","u",&device->status);
+        ESP_LOGI(TAG, "Dispositivo '%s' time e status salvos",device->id);
         return ESP_OK;
     }
     static void loadSensorFile(std::string stdPath, std::string sensorID) {
@@ -168,13 +195,13 @@ namespace Storage {
             switch (index) {
                 case 0:strncpy(sen->name, line, sizeof(sen->name) - 1);sen->name[sizeof(sen->name) - 1] = '\0';break;
                 case 1:if(!StorageManager::atribuirInt(sen->type,line)){ESP_LOGI(TAG,"type inválido");fclose(f);return;};break;
-                case 2:if(!StorageManager::atribuirInt(sen->time,line)){ESP_LOGI(TAG,"time inválido");fclose(f);return;};break;
-                case 3:if(!StorageManager::atribuirInt(sen->x_int,line)){ESP_LOGI(TAG,"status inválido");fclose(f);return;};break;
-                case 4:strncpy(sen->x_str, line, sizeof(sen->x_str) - 1);sen->x_str[sizeof(sen->x_str) - 1] = '\0';break;
+                case 2:strncpy(sen->x_str, line, sizeof(sen->x_str) - 1);sen->x_str[sizeof(sen->x_str) - 1] = '\0';break;
             }
             ++index;
         }
         fclose(f);
+        sen->time=(int8_t)loadAttributeID(sensorID,"t","i");
+        sen->x_int=(uint8_t)loadAttributeID(sensorID,"s","u");
         StorageManager::registerSensor(sen);
     }
     void loadAllSensors() {
@@ -201,11 +228,18 @@ namespace Storage {
         // ainda tem que ver como sensor vem...
         fprintf(f, "%s\n", sensor->name);
         fprintf(f, "%u\n", sensor->type);
-        fprintf(f, "%u\n", sensor->time);
-        fprintf(f, "%u\n", sensor->x_int);
         fprintf(f, "%s\n", sensor->x_str);
         fclose(f);
+        saveAttributeID(std::string(sensor->id),"t","i",&sensor->time);
+        saveAttributeID(std::string(sensor->id),"s","u",&sensor->x_int);
         ESP_LOGI(TAG,"Sensor '%s' salvo em %s",sensor->id,file_path);
+        return ESP_OK;
+    }
+    esp_err_t saveSensorData(Sensor* sensor) {
+        if(!sensor){ESP_LOGE(TAG,"Ponteiro de sensor nulo para salvar.");return ESP_ERR_INVALID_ARG;}
+        saveAttributeID(std::string(sensor->id),"t","i",&sensor->time);
+        saveAttributeID(std::string(sensor->id),"s","u",&sensor->x_int);
+        ESP_LOGI(TAG,"Sensor '%s' salvo status e x_int",sensor->id);
         return ESP_OK;
     }
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg) {
@@ -337,9 +371,37 @@ namespace Storage {
         ESP_LOGI(TAG, "Arquivo schedule salvo com sucesso");
         loadSchedule();
     }
-    esp_err_t init() {
+    static void initializeNVSDefaults(){
+        nvs_handle_t handle;
+        esp_err_t err = nvs_open("values", NVS_READWRITE, &handle);
+        if(err != ESP_OK) {ESP_LOGE(TAG, "Erro ao abrir NVS: %s", esp_err_to_name(err));return;}
+        const uint8_t du8_10 = 10;
+        const uint8_t du8_0 = 0;
+        const int8_t di8 = 10;
+        uint8_t test_val = 0;
+        int8_t test_i8 = 0;
+        if(nvs_get_u8(handle,"1_t",&test_val)!=ESP_OK){nvs_set_u8(handle,"1_t",du8_10);ESP_LOGI(TAG,"Gravado padrão: 1_t = %hhu",du8_10);}
+        if(nvs_get_u8(handle,"1_s",&test_val)!=ESP_OK){nvs_set_u8(handle,"1_s",du8_0);ESP_LOGI(TAG,"Gravado padrão: 1_s = %hhu",du8_0);}
+        if(nvs_get_u8(handle,"2_t",&test_val)!=ESP_OK){nvs_set_u8(handle,"2_t",du8_10);ESP_LOGI(TAG,"Gravado padrão: 2_t = %hhu",du8_10);}
+        if(nvs_get_u8(handle,"2_s",&test_val)!=ESP_OK){nvs_set_u8(handle,"2_s",du8_0);ESP_LOGI(TAG,"Gravado padrão: 2_s = %hhu",du8_0);}
+        if(nvs_get_u8(handle,"3_t",&test_val)!=ESP_OK){nvs_set_u8(handle,"3_t",du8_10);ESP_LOGI(TAG,"Gravado padrão: 3_t = %hhu",du8_10);}
+        if(nvs_get_u8(handle,"3_s",&test_val)!=ESP_OK){nvs_set_u8(handle,"3_s",du8_0);ESP_LOGI(TAG,"Gravado padrão: 3_s = %hhu",du8_0);}
+        if(nvs_get_i8(handle,"4_t",&test_i8)!=ESP_OK){nvs_set_i8(handle,"4_t",di8);ESP_LOGI(TAG,"Gravado padrão: 4_t = %hhd",di8);}
+        if(nvs_get_u8(handle,"4_s",&test_val)!=ESP_OK){nvs_set_u8(handle,"4_s",du8_0);ESP_LOGI(TAG,"Gravado padrão: 4_s = %hhu",du8_0);}
+        nvs_commit(handle);
+        nvs_close(handle);
+        ESP_LOGI(TAG, "NVS inicializada com valores padrão");
+    }
+    esp_err_t init(){
         esp_err_t err = nvs_flash_init();
-        if(err==ESP_ERR_NVS_NO_FREE_PAGES||err==ESP_ERR_NVS_NEW_VERSION_FOUND){ESP_ERROR_CHECK(nvs_flash_erase());err=nvs_flash_init();}
+        if(err==ESP_ERR_NVS_NO_FREE_PAGES||err==ESP_ERR_NVS_NEW_VERSION_FOUND){
+            ESP_LOGE(TAG,"NVS Error");
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err=nvs_flash_init();
+        }else{
+            ESP_LOGI(TAG,"NVS Ok");
+        }
+        initializeNVSDefaults();
         ESP_LOGI(TAG, "Montando LittleFS...");
         esp_vfs_littlefs_conf_t conf = {"/littlefs","littlefs",nullptr,false,false,false,false};
         esp_err_t ret = esp_vfs_littlefs_register(&conf);

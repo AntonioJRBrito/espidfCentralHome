@@ -28,9 +28,9 @@
       "color": "default"
     },
     {
-        "label": "$(zap) APP0",
-        "task": "Flash APP0 Partition",
-        "tooltip": "Grava firmware na partição app0",
+        "label": "$(zap) NVS",
+        "task": "Flash NVS Partition",
+        "tooltip": "Grava chaves na partição NVS",
         "alignment": "left",
         "color": "default"
     }

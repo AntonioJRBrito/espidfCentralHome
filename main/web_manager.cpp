@@ -270,7 +270,7 @@ namespace WebManager {
         requester.requester=device_id;
         requester.request_int=device_id;
         requester.resquest_type=RequestTypes::REQUEST_INT;
-        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+        StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
         std::string response= R"([{"success": {"/lights/)"+device_id_str+R"(/state/on": )"+std::string(new_state ?"true":"false")+R"(}}])";
         httpd_resp_set_type(req, "application/json");
         httpd_resp_send(req, response.c_str(), response.length());

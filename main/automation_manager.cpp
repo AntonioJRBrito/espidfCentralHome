@@ -23,7 +23,7 @@ namespace AutomationManager {
                 requester.requester = std::stoi(device);
                 requester.request_int = std::stoi(device);
                 requester.resquest_type=RequestTypes::REQUEST_INT;
-                StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
             }else{
                 ESP_LOGI(TAG,"Execute modo %u vai colocar %s em %u",inform,device_id,new_action);
                 std::string payload = "ACT:"+std::to_string(new_action);

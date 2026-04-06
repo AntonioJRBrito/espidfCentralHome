@@ -1,10 +1,10 @@
 #pragma once
 #include "storage_manager.hpp"
-#include "esp_err.h"
-#include "esp_littlefs.h"
-#include "esp_log.h"
+#include <esp_err.h>
+#include <esp_littlefs.h>
+#include <esp_log.h>
 #include <string>
-#include "esp_heap_caps.h"
+#include <esp_heap_caps.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <cstring>
@@ -12,8 +12,8 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
-#include "cJSON.h"
 #include <nvs_flash.h>
+#include <cJSON.h>
 
 namespace Storage {
     esp_err_t init();
@@ -21,8 +21,10 @@ namespace Storage {
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg);
     esp_err_t saveCredentialConfigFile(CredentialConfig* cd_cfg);
     esp_err_t saveDeviceFile(Device* device);
+    esp_err_t saveDeviceData(Device* device);
     esp_err_t deleteDeviceFile(const std::string& id);
     esp_err_t saveSensorFile(Sensor* sensor);
+    esp_err_t saveSensorData(Sensor* sensor);
     esp_err_t deleteSensorFile(const std::string& id);
     void loadAutomation();
     void saveAutomation(const char* json_payload);

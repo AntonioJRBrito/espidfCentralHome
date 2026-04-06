@@ -217,7 +217,7 @@ namespace StorageManager {
                     requester.requester=std::stoi(parts[1]);
                     requester.request_int=std::stoi(parts[1]);
                     requester.resquest_type=RequestTypes::REQUEST_INT;
-                    StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_DATA,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
+                    StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
                 }else{
                     std::string payload=(parts[0]=="CMD")?"ACT:":"BRG:";
                     payload+=actDev;
@@ -375,6 +375,22 @@ namespace StorageManager {
                                     }else{ESP_LOGE(TAG, "DEVICE_DATA: Dados inválidos ou tamanho incorreto.");}
                                     break;
                                 }
+                                case StorageStructType::DEVICE_STTM: {
+                                    if (request.data_ptr && request.data_len == sizeof(DeviceDTO)) {
+                                        DeviceDTO* device_dto = static_cast<DeviceDTO*>(request.data_ptr);
+                                        std::string device_id_str(device_dto->id);
+                                        Device* target_device = getMutableDeviceInternal(device_id_str);
+                                        if (target_device) {
+                                            memcpy(target_device, device_dto, sizeof(DeviceDTO));
+                                            Storage::saveDeviceData(target_device);
+                                            if (request.response_event_id != EventId::NONE) {
+                                                EventBus::post(EventDomain::STORAGE, request.response_event_id, &request.requester, sizeof(request.requester));
+                                            }
+                                            ESP_LOGI(TAG, "Disp '%s' atualizado. Status: %s",device_id_str.c_str(),esp_err_to_name(err));
+                                        }
+                                    }else{ESP_LOGE(TAG,"DEVICE_STTM: Dados inválidos ou tamanho incorreto.");}
+                                    break;
+                                }
                                 case StorageStructType::SENSOR_DATA: 
                                 {
                                     if (request.data_ptr && request.data_len == sizeof(SensorDTO)) {
@@ -400,14 +416,35 @@ namespace StorageManager {
                                         char id[13];
                                         strncpy(id,(strcmp(target_sensor->id,"4")==0)?StorageManager::id_cfg->id:target_sensor->id,sizeof(id)-1);
                                         id[sizeof(id)-1]='\0';
-                                        snprintf(data_buffer,sizeof(data_buffer),"ATU:%.12s:%u",id,target_sensor->x_int);
+                                        snprintf(data_buffer,sizeof(data_buffer),"ATU:%.12s:%hhd",id,target_sensor->x_int);
                                         EventBus::post(EventDomain::STORAGE,EventId::STO_SENSORATU,&data_buffer,sizeof(data_buffer));
                                         if (request.response_event_id != EventId::NONE) {
                                             EventBus::post(EventDomain::STORAGE, request.response_event_id, &request.requester, sizeof(request.requester));
                                         }
                                         if (is_new_sensor || name_changed){registerSensor(target_sensor);}
-                                        else{ESP_LOGI(TAG,"Sensor '%s' atualizado. Status: %u. Time: %u",sensor_id_str.c_str(),target_sensor->x_int,target_sensor->time);}
+                                        else{ESP_LOGI(TAG,"Sensor '%s' atualizado. Status: %u. Time: %hhd",sensor_id_str.c_str(),target_sensor->x_int,target_sensor->time);}
                                     }else{ESP_LOGE(TAG, "SENSOR_DATA: Dados inválidos ou tamanho incorreto.");}
+                                    break;                                    
+                                }
+                                case StorageStructType::SENSOR_STTM: 
+                                {
+                                    if (request.data_ptr && request.data_len == sizeof(SensorDTO)) {
+                                        SensorDTO* sensor_dto = static_cast<SensorDTO*>(request.data_ptr);
+                                        std::string sensor_id_str(sensor_dto->id);
+                                        Sensor* target_sensor = getMutableSensorInternal(sensor_id_str);
+                                        memcpy(target_sensor, sensor_dto, sizeof(SensorDTO));
+                                        Storage::saveSensorData(target_sensor);
+                                        char data_buffer[54];
+                                        char id[13];
+                                        strncpy(id,(strcmp(target_sensor->id,"4")==0)?StorageManager::id_cfg->id:target_sensor->id,sizeof(id)-1);
+                                        id[sizeof(id)-1]='\0';
+                                        snprintf(data_buffer,sizeof(data_buffer),"ATU:%.12s:%hhd",id,target_sensor->x_int);
+                                        EventBus::post(EventDomain::STORAGE,EventId::STO_SENSORATU,&data_buffer,sizeof(data_buffer));
+                                        if (request.response_event_id != EventId::NONE) {
+                                            EventBus::post(EventDomain::STORAGE, request.response_event_id, &request.requester, sizeof(request.requester));
+                                        }
+                                        ESP_LOGI(TAG,"Sensor '%s' atualizado. Status: %u. Time: %hhd",sensor_id_str.c_str(),target_sensor->x_int,target_sensor->time);
+                                    }else{ESP_LOGE(TAG, "SENSOR_STTM: Dados inválidos ou tamanho incorreto.");}
                                     break;                                    
                                 }
                                 case StorageStructType::AUTOMA_DATA: {
