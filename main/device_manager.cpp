@@ -26,6 +26,7 @@ namespace DeviceManager{
     #define OLED_BUFFER_SIZE 1024
     #define NUM_SCREENS      4
     #define BATCH_MS         200
+    static float sens=0.1;
     static uint8_t* screen_buffers[NUM_SCREENS]={0};
     static uint8_t* screen_send_bufs[NUM_SCREENS]={0};
     static SemaphoreHandle_t buffer_mutex=NULL;
@@ -99,7 +100,7 @@ namespace DeviceManager{
         touch_button_global_config_t button_global_config = TOUCH_BUTTON_GLOBAL_DEFAULT_CONFIG();
         ESP_ERROR_CHECK(touch_button_install(&button_global_config));
         for (int i = 0; i < 4; ++i) {
-            touch_button_config_t button_config={.channel_num=BUTTON_DEV[i],.channel_sens=0.5F};
+            touch_button_config_t button_config={.channel_num=BUTTON_DEV[i],.channel_sens=sens};
             ESP_ERROR_CHECK(touch_button_create(&button_config,&button_handle[i]));
             ESP_ERROR_CHECK(touch_button_subscribe_event(button_handle[i],TOUCH_ELEM_EVENT_ON_PRESS,(void*)i));
             ESP_ERROR_CHECK(touch_button_set_dispatch_method(button_handle[i],TOUCH_ELEM_DISP_CALLBACK));
