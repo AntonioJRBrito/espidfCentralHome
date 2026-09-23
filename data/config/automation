@@ -9,7 +9,8 @@
   "4": {
     "actions": [
       {"device_id": "1", "action": 1},
-      {"device_id": "3", "action": 1}
+      {"device_id": "3", "action": 1},
+      {"device_id": "z5z5z5z5z5z5", "action": 1}
     ]
   }
 }

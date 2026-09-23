@@ -267,7 +267,7 @@ namespace StorageManager {
         return (it != automationMap->end()) ? it->second->actions : nullptr;
     }
     // --- Handlers de Eventos ---
-    void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
+    void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_IFOK) {
             ESP_LOGI(TAG, "Network IFOK recebido → checar SSID/password armazenados...");
@@ -277,6 +277,17 @@ namespace StorageManager {
         }else if (evt == EventId::NET_STAGOTIP) {
             ESP_LOGI(TAG, "Network IP recebido → montar páginas Alexa...");
             Storage::initAlexa();
+        }else if (evt == EventId::NET_RTCYEAR) {
+            ESP_LOGI(TAG, "Network ano recebido → montar página Certificado...");
+            int year = *(int*)data; 
+            esp_err_t retCert = Storage::initCertificado(year);
+            if (retCert == ESP_OK) {
+                ESP_LOGI(TAG,"Certficado carregado");
+            }else{
+                esp_err_t retNewCert = Storage::loadNewCert();
+                if (retNewCert == ESP_OK) {ESP_LOGI(TAG,"Certficado carregado");}
+                else {ESP_LOGE(TAG,"Dificuldades ao carregar Certficado");}
+            }
         }
     }
     // --- Handler de inicio do MQTT ---
@@ -325,7 +336,7 @@ namespace StorageManager {
                 esp_err_t err = ESP_OK;
                 if (xSemaphoreTake(s_flash_mutex, portMAX_DELAY) == pdTRUE) {
                     switch (request.command) {
-                        case StorageCommand::SAVE: {
+                        case StorageCommand::SAVE: {  
                             ESP_LOGI(TAG, "Processando SAVE para Tipo=%d", static_cast<int>(request.type));
                             switch (request.type) {
                                 case StorageStructType::CONFIG_DATA: 
@@ -481,6 +492,10 @@ namespace StorageManager {
                             // TODO: Implementar lógica de DELETE
                             err = ESP_ERR_NOT_SUPPORTED;
                             break;
+                        }
+                        case StorageCommand::RESET: {  
+                            err=Storage::factoryReset();
+                            if(err==ESP_OK){vTaskDelay(pdMS_TO_TICKS(3000));esp_restart();}
                         }
                     }
                     xSemaphoreGive(s_flash_mutex);

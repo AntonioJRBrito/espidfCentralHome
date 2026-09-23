@@ -144,7 +144,7 @@ struct PublishBrokerData {
     PublishBrokerData(){memset(device_id,0,sizeof(device_id));memset(payload,0,sizeof(payload));}
     PublishBrokerData(const char* id_cstr,const char* p_cstr){memset(device_id,0,sizeof(device_id));memset(payload,0,sizeof(payload));strncpy(device_id,id_cstr,sizeof(device_id)-1);strncpy(payload,p_cstr,sizeof(payload)-1);device_id[sizeof(device_id)-1]='\0';payload[sizeof(payload)-1]='\0';}
 };
-enum class StorageCommand {SAVE,DELETE};
+enum class StorageCommand {SAVE,DELETE,RESET};
 enum class StorageStructType {CONFIG_DATA,CREDENTIAL_DATA,SENSOR_DATA,DEVICE_DATA,AUTOMA_DATA,SCHEDULE_DATA,SENSOR_STTM,DEVICE_STTM};
 enum class RequestTypes {REQUEST_NONE,REQUEST_INT,REQUEST_CHAR};
 struct RequestSave {

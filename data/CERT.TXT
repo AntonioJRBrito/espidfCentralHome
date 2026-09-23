@@ -1,0 +1,166 @@
+CONNECTED(00000224)
+---
+Certificate chain
+ 0 s:CN=ia.srv.br
+   i:C=US, O=Google Trust Services, CN=WE1
+   a:PKEY: EC, (prime256v1); sigalg: ecdsa-with-SHA256
+   v:NotBefore: Jul 23 19:26:37 2026 GMT; NotAfter: Oct 21 20:26:33 2026 GMT
+-----BEGIN CERTIFICATE-----
+MIIDcjCCAxmgAwIBAgIQJ04SWtXRnI0T93ihdTR0iTAKBggqhkjOPQQDAjA7MQsw
+CQYDVQQGEwJVUzEeMBwGA1UEChMVR29vZ2xlIFRydXN0IFNlcnZpY2VzMQwwCgYD
+VQQDEwNXRTEwHhcNMjYwNzIzMTkyNjM3WhcNMjYxMDIxMjAyNjMzWjAUMRIwEAYD
+VQQDEwlpYS5zcnYuYnIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATwK7xjHBDZ
+o2BOXd9jw+ZuIrqpugOAxzmPbY7iZwudmNyrinn9jxrr+4fC8OAm6YZ3F79w0/Oo
+xJbOlO2ytjIbo4ICJDCCAiAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMAwGA1UdEwEB/wQCMAAwHQYDVR0OBBYEFH/4y4cc9iKsc7x4meFl9doX
+2F8wMB8GA1UdIwQYMBaAFJB3kjVnxP+ozKnme9mAeXvMk/k4MDUGCCsGAQUFBwEB
+BCkwJzAlBggrBgEFBQcwAoYZaHR0cDovL2kucGtpLmdvb2cvd2UxLmNydDAhBgNV
+HREEGjAYgglpYS5zcnYuYnKCCyouaWEuc3J2LmJyMBMGA1UdIAQMMAowCAYGZ4EM
+AQIBMDYGA1UdHwQvMC0wK6ApoCeGJWh0dHA6Ly9jLnBraS5nb29nL3dlMS9oeVZP
+eVlLeHo5RS5jcmwwggECBgorBgEEAdZ5AgQCBIHzBIHwAO4AdQDCMX5XRRmjRe5/
+ON6ykEHrx8IhWiK/f9W1rXaa2Q5SzQAAAZ+QqKF5AAAEAwBGMEQCIEDmvXN+VoJL
+4yL5Uf3pNAEKWWdcPO5CTqXMVKfc1PVwAiAJ70+GRYYs21H32Nuxl6rDpcLuWw3B
+FHq8HN+J5R9WvwB1ANgJVTuUT3r/yBYZb5RPhauw+Pxeh1UmDxXRLnK7RUsUAAAB
+n5CooZwAAAQDAEYwRAIgZkl5OwwTuVbMoZQOo8PIOLDS7SGdNirUbhWIRH6G57MC
+ICXHyAZ643CACsxdAtVDwdp3E2bQIxEr3cbXXbXrvSxaMAoGCCqGSM49BAMCA0cA
+MEQCIDn6DxtFOwthP+t/T8XsVaD7H2Gkw1EyYY/dnxYCVvujAiAKIkBD3gVsYGR0
+M+Q8PIzHfTKWuFA8qy4f59svnn7jCQ==
+-----END CERTIFICATE-----
+ 1 s:C=US, O=Google Trust Services, CN=WE1
+   i:C=US, O=Google Trust Services LLC, CN=GTS Root R4
+   a:PKEY: EC, (prime256v1); sigalg: ecdsa-with-SHA384
+   v:NotBefore: Dec 13 09:00:00 2023 GMT; NotAfter: Feb 20 14:00:00 2029 GMT
+-----BEGIN CERTIFICATE-----
+MIICnzCCAiWgAwIBAgIQf/MZd5csIkp2FV0TttaF4zAKBggqhkjOPQQDAzBHMQsw
+CQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEU
+MBIGA1UEAxMLR1RTIFJvb3QgUjQwHhcNMjMxMjEzMDkwMDAwWhcNMjkwMjIwMTQw
+MDAwWjA7MQswCQYDVQQGEwJVUzEeMBwGA1UEChMVR29vZ2xlIFRydXN0IFNlcnZp
+Y2VzMQwwCgYDVQQDEwNXRTEwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARvzTr+
+Z1dHTCEDhUDCR127WEcPQMFcF4XGGTfn1XzthkubgdnXGhOlCgP4mMTG6J7/EFmP
+LCaY9eYmJbsPAvpWo4H+MIH7MA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggr
+BgEFBQcDAQYIKwYBBQUHAwIwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU
+kHeSNWfE/6jMqeZ72YB5e8yT+TgwHwYDVR0jBBgwFoAUgEzW63T/STaj1dj8tT7F
+avCUHYwwNAYIKwYBBQUHAQEEKDAmMCQGCCsGAQUFBzAChhhodHRwOi8vaS5wa2ku
+Z29vZy9yNC5jcnQwKwYDVR0fBCQwIjAgoB6gHIYaaHR0cDovL2MucGtpLmdvb2cv
+ci9yNC5jcmwwEwYDVR0gBAwwCjAIBgZngQwBAgEwCgYIKoZIzj0EAwMDaAAwZQIx
+AOcCq1HW90OVznX+0RGU1cxAQXomvtgM8zItPZCuFQ8jSBJSjz5keROv9aYsAm5V
+sQIwJonMaAFi54mrfhfoFNZEfuNMSQ6/bIBiNLiyoX46FohQvKeIoJ99cx7sUkFN
+7uJW
+-----END CERTIFICATE-----
+ 2 s:C=US, O=Google Trust Services LLC, CN=GTS Root R4
+   i:C=BE, O=GlobalSign nv-sa, OU=Root CA, CN=GlobalSign Root CA
+   a:PKEY: EC, (secp384r1); sigalg: sha256WithRSAEncryption
+   v:NotBefore: Nov 15 03:43:21 2023 GMT; NotAfter: Jan 28 00:00:42 2028 GMT
+-----BEGIN CERTIFICATE-----
+MIIDejCCAmKgAwIBAgIQf+UwvzMTQ77dghYQST2KGzANBgkqhkiG9w0BAQsFADBX
+MQswCQYDVQQGEwJCRTEZMBcGA1UEChMQR2xvYmFsU2lnbiBudi1zYTEQMA4GA1UE
+CxMHUm9vdCBDQTEbMBkGA1UEAxMSR2xvYmFsU2lnbiBSb290IENBMB4XDTIzMTEx
+NTAzNDMyMVoXDTI4MDEyODAwMDA0MlowRzELMAkGA1UEBhMCVVMxIjAgBgNVBAoT
+GUdvb2dsZSBUcnVzdCBTZXJ2aWNlcyBMTEMxFDASBgNVBAMTC0dUUyBSb290IFI0
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE83Rzp2iLYK5DuDXFgTB7S0md+8Fhzube
+Rr1r1WEYNa5A3XP3iZEwWus87oV8okB2O6nGuEfYKueSkWpz6bFyOZ8pn6KY019e
+WIZlD6GEZQbR3IvJx3PIjGov5cSr0R2Ko4H/MIH8MA4GA1UdDwEB/wQEAwIBhjAd
+BgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDwYDVR0TAQH/BAUwAwEB/zAd
+BgNVHQ4EFgQUgEzW63T/STaj1dj8tT7FavCUHYwwHwYDVR0jBBgwFoAUYHtmGkUN
+l8qJUC99BM00qP/8/UswNgYIKwYBBQUHAQEEKjAoMCYGCCsGAQUFBzAChhpodHRw
+Oi8vaS5wa2kuZ29vZy9nc3IxLmNydDAtBgNVHR8EJjAkMCKgIKAehhxodHRwOi8v
+Yy5wa2kuZ29vZy9yL2dzcjEuY3JsMBMGA1UdIAQMMAowCAYGZ4EMAQIBMA0GCSqG
+SIb3DQEBCwUAA4IBAQAYQrsPBtYDh5bjP2OBDwmkoWhIDDkic574y04tfzHpn+cJ
+odI2D4SseesQ6bDrarZ7C30ddLibZatoKiws3UL9xnELz4ct92vID24FfVbiI1hY
++SW6FoVHkNeWIP0GCbaM4C6uVdF5dTUsMVs/ZbzNnIdCp5Gxmx5ejvEau8otR/Cs
+kGN+hr/W5GvT1tMBjgWKZ1i4//emhA1JG1BbPzoLJQvyEotc03lXjTaCzv8mEbep
+8RqZ7a2CPsgRbuvTPBwcOMBBmuFeU88+FSBX6+7iP0il8b4Z0QFqIwwMHfs/L6K1
+vepuoxtGzi4CZ68zJpiq1UvSqTbFJjtbD4seiMHl
+-----END CERTIFICATE-----
+---
+Server certificate
+subject=CN=ia.srv.br
+issuer=C=US, O=Google Trust Services, CN=WE1
+---
+No client certificate CA names sent
+Peer signing digest: SHA256
+Peer signature type: ecdsa_secp256r1_sha256
+Negotiated TLS1.3 group: X25519MLKEM768
+---
+SSL handshake has read 3862 bytes and written 1628 bytes
+Verification error: unable to get local issuer certificate
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Protocol: TLSv1.3
+Server public key is 256 bit
+This TLS version forbids renegotiation.
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 20 (unable to get local issuer certificate)
+---
+ECH: NOT CONFIGURED: -103
+---
+---
+Post-Handshake New Session Ticket arrived:
+SSL-Session:
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Session-ID: 76DB9BC00E36484FC63C5B07DE5A2DE10566D5B741F22F913C11BC2F0E6CD5FB
+    Session-ID-ctx: 
+    Resumption PSK: 9041596AB43EE3F1FFBB9821121D3E362984D77C0FE87480DE21657A803F8DE6C32D82B5D6CBAE3C7EDC2C014E36CC26
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    TLS session ticket lifetime hint: 64800 (seconds)
+    TLS session ticket:
+    0000 - 2d b2 8b 3f 28 fb e0 9a-3d 57 19 23 e8 9d f4 e7   -..?(...=W.#....
+    0010 - 82 19 3f 1f d4 79 cd 01-81 7c 87 29 74 9d 98 02   ..?..y...|.)t...
+    0020 - 38 2d 92 5c 28 c8 64 d0-67 34 e8 e9 30 b4 1b c8   8-.\(.d.g4..0...
+    0030 - d3 68 87 d6 4f ef 70 8c-0f 09 80 28 ec c4 88 5e   .h..O.p....(...^
+    0040 - 5b f7 5a be b5 3e 8d 26-8f e7 51 f0 92 51 eb 1f   [.Z..>.&..Q..Q..
+    0050 - ac ee 25 01 fe 07 28 41-23 1a 5e e0 28 94 39 4a   ..%...(A#.^.(.9J
+    0060 - 5d 3c 91 0f 26 81 80 b6-e5 66 13 f5 eb 9f 5e 5b   ]<..&....f....^[
+    0070 - a8 be 59 90 5e c1 49 4d-1c ae e0 8f b9 34 69 70   ..Y.^.IM.....4ip
+    0080 - 19 78 c9 14 5b 46 20 09-80 52 23 76 da f5 41 75   .x..[F ..R#v..Au
+    0090 - 0e 2d ec 11 1e eb c0 99-1a ca 18 77 8d 95 b1 8f   .-.........w....
+    00a0 - 60 49 75 13 e9 80 e5 83-57 ee 57 26 fb ea 54 2a   `Iu.....W.W&..T*
+    00b0 - e0 6e 92 e9 3f 95 f6 e3-20 08 26 95 3e cd 54 69   .n..?... .&.>.Ti
+
+    Start Time: 1785964495
+    Timeout   : 7200 (sec)
+    Verify return code: 20 (unable to get local issuer certificate)
+    Extended master secret: no
+    Max Early Data: 0
+---
+read R BLOCK
+---
+Post-Handshake New Session Ticket arrived:
+SSL-Session:
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Session-ID: 6C19DDD7C22693FB7E49753413765BA01995514BDAEB79166EA369126010D344
+    Session-ID-ctx: 
+    Resumption PSK: 9AFA42B84A12F4EF7678AA7E6302903132FC1C0B4B59A85C0A5DF61D49908F2355D90D00EC0038AF1AA5CA4D5AA2D9BC
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    TLS session ticket lifetime hint: 64800 (seconds)
+    TLS session ticket:
+    0000 - 2d b2 8b 3f 28 fb e0 9a-3d 57 19 23 e8 9d f4 e7   -..?(...=W.#....
+    0010 - 1f ad e0 41 d2 c4 57 b8-61 ef f2 27 56 5f 27 a2   ...A..W.a..'V_'.
+    0020 - a8 50 ba 82 a2 54 91 a4-b8 59 dd bb 2a 40 21 18   .P...T...Y..*@!.
+    0030 - 25 24 4f 79 40 e3 80 a0-3d f8 04 0b b4 44 9c ce   %$Oy@...=....D..
+    0040 - d9 6e 44 d1 d7 62 56 94-00 4c 59 0b 6d 81 f2 fa   .nD..bV..LY.m...
+    0050 - 9e 42 90 32 33 6b d4 56-ea ae 8c 07 29 d3 7d 78   .B.23k.V....).}x
+    0060 - f1 db 99 4c 78 b0 19 7c-3e 16 8e 3d 7a 82 d4 9b   ...Lx..|>..=z...
+    0070 - 3d 01 7c de 7f 85 96 f8-98 ea 4d 60 ce 4a 8a e8   =.|.......M`.J..
+    0080 - 6e a4 fb 08 92 8e 2e 01-66 c1 3a 0f 71 6b 0c c5   n.......f.:.qk..
+    0090 - f1 fc d2 ac 15 fc 3d c9-b8 1f 99 3a 26 ee 70 13   ......=....:&.p.
+    00a0 - a3 e1 81 e7 7e 20 c4 24-2e e3 f7 10 53 b0 c1 df   ....~ .$....S...
+    00b0 - 76 41 5e 65 41 1d 0c dc-81 13 81 a3 10 b0 33 6d   vA^eA.........3m
+
+    Start Time: 1785964495
+    Timeout   : 7200 (sec)
+    Verify return code: 20 (unable to get local issuer certificate)
+    Extended master secret: no
+    Max Early Data: 0
+---
+read R BLOCK
+closed

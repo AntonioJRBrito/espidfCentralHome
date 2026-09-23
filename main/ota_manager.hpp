@@ -19,4 +19,5 @@ namespace OtaManager
     void downloadFirmwareAsync(const std::string& filename,int client_fd);
     void downloadFirmware(const std::string& filename,int client_fd);
     void factoryAsync(int client_fd);
+    void print_running_partition();
 }

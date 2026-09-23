@@ -5,6 +5,7 @@
 #include <esp_log.h>
 #include <string>
 #include <esp_heap_caps.h>
+#include "esp_http_client.h"
 #include <stdio.h>
 #include <dirent.h>
 #include <cstring>
@@ -18,6 +19,8 @@
 namespace Storage {
     esp_err_t init();
     esp_err_t initAlexa();
+    esp_err_t initCertificado(int year);
+    esp_err_t loadNewCert();
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg);
     esp_err_t saveCredentialConfigFile(CredentialConfig* cd_cfg);
     esp_err_t saveDeviceFile(Device* device);
@@ -26,6 +29,7 @@ namespace Storage {
     esp_err_t saveSensorFile(Sensor* sensor);
     esp_err_t saveSensorData(Sensor* sensor);
     esp_err_t deleteSensorFile(const std::string& id);
+    esp_err_t factoryReset();
     void loadAutomation();
     void saveAutomation(const char* json_payload);
     void loadSchedule();

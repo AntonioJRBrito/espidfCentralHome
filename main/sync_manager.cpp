@@ -59,6 +59,7 @@ namespace SyncManager
         if (ready_mask == ALL_MASK)
         {
             ESP_LOGI(TAG, "→ Todos os domínios prontos: publicando READY_ALL");
+            OtaManager::print_running_partition();
             EventBus::post(EventDomain::READY, EventId::READY_ALL);
             deinit();
         }

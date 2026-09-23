@@ -9,8 +9,11 @@ namespace RtcManager {
         vTaskDelay(pdMS_TO_TICKS(200));
         ESP_LOGI(TAG,"Notificação de sincronização de tempo: Hora atual %s",get_current_time_str().c_str());
         CurrentTime currentTime = get_current_time_struct();
+        int currentYear = get_current_year();
         s_time_synced = true;
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSYNCED,&currentTime,sizeof(CurrentTime));
+        EventBus::post(EventDomain::NETWORK, EventId::NET_RTCYEAR,&currentYear,sizeof(int));
+        ESP_LOGI(TAG, "Enviado o NET_RTCYEAR:%u",currentYear);
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVSUPLY,&currentTime,sizeof(CurrentTime));
     }
     void initialize_sntp() {
@@ -58,6 +61,13 @@ namespace RtcManager {
         currentTime.minute = timeinfo.tm_min;
         currentTime.second = timeinfo.tm_sec;
         return currentTime;
+    }
+    int get_current_year() {
+        time_t now;
+        struct tm timeinfo;
+        time(&now);
+        localtime_r(&now, &timeinfo);
+        return timeinfo.tm_year+1900;
     }
     static void onEventNetworkBus(void*,esp_event_base_t base,int32_t id,void* data) {
         EventId evt = static_cast<EventId>(id);

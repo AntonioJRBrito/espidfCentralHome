@@ -16,6 +16,7 @@ namespace RtcManager
     void set_timezone(const char* timezone_str);
     std::string get_current_time_str();
     CurrentTime get_current_time_struct();
+    int get_current_year();
     void initialize_sntp();
     void set_manual_time(int year, int month, int day, int hour, int minute, int second);
     void set_timezone(const char* timezone_str);
