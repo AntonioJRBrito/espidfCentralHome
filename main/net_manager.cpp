@@ -72,6 +72,14 @@ namespace NetManager
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
         ESP_LOGI(TAG,"AP atualizado para SSID: %s",ap_cfg.ap.ssid);
     }
+    static void update_softap_config() {
+        esp_wifi_deauth_sta(0);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        vTaskDelay(pdMS_TO_TICKS(15000));
+        ESP_LOGW(TAG, "Reiniciando agora!");
+        esp_restart();
+    }
     static void onEventReadyBus(void*,esp_event_base_t base,int32_t id,void*)
     {
         if(static_cast<EventId>(id)==EventId::READY_ALL){
@@ -95,7 +103,6 @@ namespace NetManager
                 if (s_requesting_fd != -1) {EventBus::post(EventDomain::NETWORK, EventId::NET_LISTOK, &s_requesting_fd, sizeof(int));s_requesting_fd = -1;}
             } else {
                 ESP_LOGI(TAG, "Cache WiFi inválido ou expirado, iniciando scan...");
-                // StorageManager::invalidateWifiCache();
                 wifi_scan_config_t scan_config = {
                     .ssid = nullptr,
                     .bssid = nullptr,
@@ -145,6 +152,13 @@ namespace NetManager
                 xTimerChangePeriod(ap_change_timer,pdMS_TO_TICKS(60000),0);
                 xTimerStart(ap_change_timer,0);
             }
+        }
+    }
+    static void onEventSocketBus(void*,esp_event_base_t base,int32_t id,void*)
+    {
+        EventId evt = static_cast<EventId>(id);
+        if (evt == EventId::SOCKET_REBOOT){
+            update_softap_config();
         }
     }
     static void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data)
@@ -339,7 +353,6 @@ namespace NetManager
     }
     esp_err_t startAP()
     {
-        // --- Inicialização do NVS ---
         esp_err_t ret = nvs_flash_init();
         if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
             ret == ESP_ERR_NVS_NEW_VERSION_FOUND ||
@@ -349,19 +362,13 @@ namespace NetManager
             ret = nvs_flash_init();
         }
         ESP_ERROR_CHECK(ret);
-        // --- Inicialização das interfaces e eventos ---
         ESP_ERROR_CHECK(esp_netif_init());
-        // ESP_ERROR_CHECK(esp_event_loop_create_default());
-        // Cria as interfaces AP e STA (as duas, pois o modo será AP+STA)
         netif_ap  = esp_netif_create_default_wifi_ap();
         netif_sta = esp_netif_create_default_wifi_sta();
-        // --- Inicializa o Wi-Fi ---
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-        // --- Registra handlers de evento ---
         ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
         ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &onWifiEvent, nullptr));
-        // --- Configura o Access Point ---
         wifi_config_t ap_cfg{};
         strncpy((char*)ap_cfg.ap.ssid,StorageManager::cfg->central_name,sizeof(ap_cfg.ap.ssid)-1);
         ap_cfg.ap.ssid[sizeof(ap_cfg.ap.ssid)-1]='\0';
@@ -369,10 +376,8 @@ namespace NetManager
         ap_cfg.ap.channel=1;
         ap_cfg.ap.max_connection=1;
         ap_cfg.ap.authmode=WIFI_AUTH_OPEN;
-        // --- Define modo e configurações ---
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
-        // --- Inicia o Wi-Fi ---
         ESP_ERROR_CHECK(esp_wifi_start());
         ESP_LOGI(TAG, "Access Point iniciado: SSID=%s, canal=%d", ap_cfg.ap.ssid, ap_cfg.ap.channel);
         esp_err_t mdns_ret = initMDNS();
@@ -395,10 +400,11 @@ namespace NetManager
     {
         EventBus::regHandler(EventDomain::NETWORK, &onEventNetworkBus, nullptr);
         EventBus::regHandler(EventDomain::STORAGE, &onEventStorageBus, nullptr);
+        EventBus::regHandler(EventDomain::SOCKET, &onEventSocketBus, nullptr);
         EventBus::regHandler(EventDomain::READY, &onEventReadyBus, nullptr);
         blocked_aid_timer=xTimerCreate("BlockedAIDTimer",pdMS_TO_TICKS(30000),pdFALSE,(void*)0,unblock_aid_timer_callback);
         if(blocked_aid_timer==nullptr){ESP_LOGE(TAG,"Falha ao criar timer para bloqueio de AID!");return ESP_FAIL;}
-        ap_change_timer=xTimerCreate("ChangeAPTimer",pdMS_TO_TICKS(45000),pdFALSE,(void*)0,chage_timer_ap);
+        ap_change_timer=xTimerCreate("ChangeAPTimer",pdMS_TO_TICKS(60000),pdFALSE,(void*)0,chage_timer_ap);
         if(ap_change_timer==nullptr){ESP_LOGE(TAG,"Falha ao criar AP change timer!");}
         EventBus::post(EventDomain::READY, EventId::NET_READY);
         ESP_LOGI(TAG, "NetManager inicializado (aguardando READY_ALL para iniciar AP)");

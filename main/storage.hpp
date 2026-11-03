@@ -19,8 +19,6 @@
 namespace Storage {
     esp_err_t init();
     esp_err_t initAlexa();
-    esp_err_t initCertificado(int year);
-    esp_err_t loadNewCert();
     esp_err_t saveGlobalConfigFile(GlobalConfig* cfg);
     esp_err_t saveCredentialConfigFile(CredentialConfig* cd_cfg);
     esp_err_t saveDeviceFile(Device* device);

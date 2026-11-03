@@ -1,22 +1,18 @@
-
 #include "device_manager.hpp"
 
 static const char* TAG = "DeviceManager";
 
 namespace DeviceManager{
-    // QRCode
     const int minVersion=1;
     const int maxVersion=40;
     const qrcodegen_Mask mask=qrcodegen_Mask_AUTO;
     const bool boostEcl=true;
     const qrcodegen_Ecc ecl=qrcodegen_Ecc_MEDIUM;
-    // buzzer
     #define BUZZER_GPIO      GPIO_NUM_19
     #define BUZZER_ACTIVE    0
     #define BUZZER_INACTIVE  1
     #define BUZZER_MS        100
     static esp_timer_handle_t buzzer_timer=nullptr;
-    // display
     #define OLED_I2C_PORT    I2C_NUM_0
     #define OLED_I2C_SDA     GPIO_NUM_16
     #define OLED_I2C_SCL     GPIO_NUM_15
@@ -49,10 +45,8 @@ namespace DeviceManager{
     static const int NOP_CMD=9;
     static bool display_ready=false;
     static CurrentTime t;
-    // display handler service
     static int8_t display_page=-1;
     static const uint8_t DISPLAY_PAGE_COUNT=3;
-    // devices
     static const gpio_num_t OUTPUT_DEV[4]={GPIO_NUM_41,GPIO_NUM_39,GPIO_NUM_40,GPIO_NUM_42};
     static const touch_pad_t BUTTON_DEV[4]={TOUCH_PAD_NUM7,TOUCH_PAD_NUM6,TOUCH_PAD_NUM5,TOUCH_PAD_NUM4};
     static esp_timer_handle_t timers[4]={nullptr,nullptr,nullptr,nullptr};
@@ -62,15 +56,12 @@ namespace DeviceManager{
     static QueueHandle_t touch_queue=nullptr;
     static QueueHandle_t storage_event_queue=nullptr;
     static void storage_event_task(void* arg);
-    // sensors
     #define DEBOUNCE_SENSOR_MS 200
     static const gpio_num_t INPUT_DEV=GPIO_NUM_2;
     typedef struct{uint8_t level;uint32_t ts_ms;}SensorEvent;
     static QueueHandle_t sensor_queue=NULL;
     static esp_timer_handle_t init_sensor_timer=nullptr;
-    // backlight
     #define BACKLIGHT        GPIO_NUM_20
-    // inicializações
     static void init_backlight(){
         gpio_reset_pin(BACKLIGHT);
         gpio_set_direction(BACKLIGHT,GPIO_MODE_OUTPUT);
@@ -159,7 +150,6 @@ namespace DeviceManager{
         esp_timer_start_once(init_sensor_timer,200*1000ULL);
         ESP_LOGI(TAG, "Sensor GPIO %d configurado (active-low)",(int)INPUT_DEV);
     }
-    // qrcode
     static void generate_and_draw_wifi_qr_to_screen_n(uint8_t screen_num){
         std::string payload;
         if (screen_num == 2) {
@@ -246,7 +236,6 @@ namespace DeviceManager{
         heap_caps_free(qrcode);
         heap_caps_free(temp);
     }
-    // buzzer
     static void buzzer_timer_cb(void*){
         gpio_set_level(BUZZER_GPIO,BUZZER_INACTIVE);
     }
@@ -255,7 +244,6 @@ namespace DeviceManager{
         gpio_set_level(BUZZER_GPIO,BUZZER_ACTIVE);
         esp_timer_start_once(buzzer_timer,(uint64_t)ms*1000ULL);
     }
-    // sensor
     static void init_sensor_timer_cb(void* arg) {
         (void)arg;
         uint8_t level=(uint8_t)gpio_get_level(INPUT_DEV);
@@ -338,7 +326,6 @@ namespace DeviceManager{
             EventBus::post(EventDomain::AUTOMATION, EventId::AUT_DETECTSENSOR, &params, sizeof(AutomationTaskParams));
         }
     }
-    // devices
     static void handlerDev(uint8_t dev_id){
         const Device* device_ptr = StorageManager::getDevice(std::to_string(dev_id));
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCDEVREQUEST);
@@ -392,7 +379,6 @@ namespace DeviceManager{
             StorageManager::enqueueRequest(StorageCommand::SAVE,StorageStructType::DEVICE_STTM,&device_dto,sizeof(DeviceDTO),requester,EventId::STO_DEVICESAVED);
         }
     }
-    // display
     static const uint8_t* get_char_bitmap(char c)
     {
         switch (c) {
@@ -617,7 +603,6 @@ namespace DeviceManager{
         DrawCmd off={.command=OFF_CMD,.status=0};
         xQueueSend(draw_queue,&off,0);    
     }
-    //eventos
     static void storage_event_task(void* arg){
         int devsen_id;
         for(;;){

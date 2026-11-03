@@ -4,13 +4,12 @@
 static const char* TAG = "SocketManager";
 
 namespace SocketManager {
-    // Lista de file descriptors dos clientes WebSocket conectados
+    static bool pending_commit_reboot = false;
     static std::vector<WebSocketClient> ws_clients;
     static std::mutex clients_mutex;
     static httpd_handle_t ws_server = nullptr;
     static bool ws_registered = false;
     static httpd_uri_t ws_uri;
-    // controle de FDs abertos
     #define SUSPEND_AP 20
     static esp_timer_handle_t ap_suspend_timer = nullptr;
     static wifi_mode_t saved_wifi_mode = WIFI_MODE_NULL;
@@ -20,7 +19,6 @@ namespace SocketManager {
     static esp_timer_handle_t keep_timer = nullptr;
     static std::set<int> pending_keep_fds;
     static std::mutex pending_mutex;
-    //Funções info
     static void info(int fd){
         cJSON* root = cJSON_CreateObject();
         if(!root){ESP_LOGE(TAG, "Falha ao criar objeto cJSON");return;}
@@ -64,7 +62,6 @@ namespace SocketManager {
         cJSON_Delete(root);
         free((void*)json_string);
     }
-    // inclusão e remoção de FDs, tratamento de AP
     static int log_ap_associated_clients() {
         wifi_sta_list_t sta_list;
         memset(&sta_list, 0, sizeof(sta_list));
@@ -92,20 +89,28 @@ namespace SocketManager {
     }
     static void removeClientByFd(int fd){
         std::lock_guard<std::mutex> lk(clients_mutex);
-        auto it = std::find_if(ws_clients.begin(), ws_clients.end(),
-            [fd](const WebSocketClient &c){ return c.fd == fd; });
+        auto it = std::find_if(ws_clients.begin(), ws_clients.end(), [fd](const WebSocketClient &c){ return c.fd == fd; });
         if (it != ws_clients.end()) {
-            bool was_from_ap = it->from_ap;
-            ::shutdown(fd,SHUT_RDWR);
+            ::shutdown(fd, SHUT_RDWR);
             ::close(fd);
             ws_clients.erase(it);
             ESP_LOGI(TAG, "cliente fd=%d removido da lista", fd);
-            if(was_from_ap){ESP_LOGI(TAG, "cliente era do AP -> suspendendo AP por 20s");suspend_ap_for_seconds(SUSPEND_AP);}
-            return;
         }
-        ::shutdown(fd,SHUT_RDWR);
-        ::close(fd);
-        ESP_LOGI(TAG, "removeClientByFd: fd=%d fechado (não estava na lista)", fd);
+    }
+    static std::string getSocketContext(int fd) {
+        struct sockaddr_storage addr;
+        socklen_t addr_len = sizeof(addr);
+        if (getpeername(fd, reinterpret_cast<struct sockaddr*>(&addr), &addr_len) == 0) {
+            char ipstr[INET6_ADDRSTRLEN] = {0};
+            if (addr.ss_family == AF_INET) {
+                struct sockaddr_in *s = reinterpret_cast<struct sockaddr_in*>(&addr);
+                inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof(ipstr));
+            }
+            if (strstr(ipstr, "192.168.4.") != nullptr) {
+                return StorageManager::scanCache->is_sta_connected ? "AP:C" : "AP:NC";
+            }
+        }
+        return "STA";
     }
     void handle_ws_alive(int fd){
         std::lock_guard<std::mutex> lk(pending_mutex);
@@ -131,6 +136,11 @@ namespace SocketManager {
             bool ok = (sendToClient(fd, "keep") == ESP_OK);
             if(!ok){ESP_LOGW(TAG,"falha ao enviar keep para fd=%d -> fechar imediatamente", fd);removeClientByFd(fd);continue;}
             {std::lock_guard<std::mutex> lk(pending_mutex);pending_keep_fds.insert(fd);}
+        }
+        if (ws_clients.empty() && pending_commit_reboot) {
+            pending_commit_reboot = false;
+            ESP_LOGW(TAG, "Cliente desconectou. Disparando reboot agendado do SoftAP...");
+            EventBus::post(EventDomain::SOCKET, EventId::SOCKET_REBOOT);
         }
     }
     void start_keep_timer() {
@@ -180,7 +190,6 @@ namespace SocketManager {
         if(esp_timer_start_once(ap_suspend_timer,us)!=ESP_OK){ESP_LOGW(TAG,"falha timer de resume");esp_timer_delete(ap_suspend_timer);ap_suspend_timer=nullptr;return;}
         ESP_LOGI(TAG, "suspend_ap_for_seconds: timer iniciado por %u s", seconds);
     }
-    // Handler do WebSocket
     static esp_err_t ws_handler(httpd_req_t* req) {
         if (req->method == HTTP_GET) {
             int fd = httpd_req_to_sockfd(req);
@@ -219,6 +228,7 @@ namespace SocketManager {
         int fd = httpd_req_to_sockfd(req);
         if (strncmp(message.c_str(),"HOST:",5) == 0) {
             ESP_LOGI(TAG, "Comando HOST recebido para fd=%d", fd);
+            if (StorageManager::scanCache->is_sta_connected) {sendToClient(fd, "CONECTADA");}
             const char* ipH=message.c_str()+5;
             if(!ipH){ESP_LOGI(TAG,"Sem ipH");}
             else if(strcmp(ipH,"automacao.local")==0){ESP_LOGI(TAG,"ip: %s",message.c_str());}
@@ -428,7 +438,6 @@ namespace SocketManager {
         free(buf);
         return ret;
     }
-    //Envia mensagem para um cliente específico
     esp_err_t sendToClient(int fd, const char* message) {
         if (!ws_server || !message) {return ESP_ERR_INVALID_ARG;}
         httpd_ws_frame_t ws_pkt;
@@ -440,7 +449,6 @@ namespace SocketManager {
         if (ret != ESP_OK) {ESP_LOGW(TAG, "Falha ao enviar para fd=%d: %s", fd, esp_err_to_name(ret));}
         return ret;
     }
-    //Envia mensagem para todos os clientes
     void broadcastToAllClients(const char* message) {
         if (!message) return;
         std::lock_guard<std::mutex> lk(clients_mutex);
@@ -449,7 +457,6 @@ namespace SocketManager {
             if (ret != ESP_OK) {ESP_LOGW(TAG, "Falha ao enviar broadcast para fd=%d", client.fd);}
         }
     }
-    //Handler de eventos do EventDomain::NETWORK
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         int data_rec = -1;
@@ -480,7 +487,6 @@ namespace SocketManager {
         }
         else {ESP_LOGD(TAG, "Evento de rede ignorado: %d", (int)evt);}
     }
-    // Inicia o WebSocket (chamado após o HTTP server estar rodando)
     esp_err_t start(httpd_handle_t server) {
         if (!server) {ESP_LOGE(TAG, "HTTP server inválido");return ESP_FAIL;}
         if (ws_registered) {ESP_LOGW(TAG, "WebSocket já registrado, ignorando...");return ESP_OK;}
@@ -498,7 +504,6 @@ namespace SocketManager {
         else {ESP_LOGE(TAG, "Falha ao registrar WebSocket handler");}
         return ret;
     }
-    // Parar o WebSocket
     esp_err_t stop() {
         stop_keep_timer();
         std::lock_guard<std::mutex> lock(clients_mutex);
@@ -525,11 +530,12 @@ namespace SocketManager {
         const char* response;
         if(evt==EventId::STO_CONFIGSAVED){response="configOk";ret=sendToClient(client_fd,response);}
         if(evt==EventId::STO_CREDENTIALSAVED){
-            response = "credentialOk";
-            ret = sendToClient(client_fd,response);
-            vTaskDelay(3000 / portTICK_PERIOD_MS);
-            ESP_LOGI(TAG, "Reiniciando ESP...");
-            esp_restart();
+            pending_commit_reboot = true;
+            sendToClient(client_fd, "credentialOk");
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            pending_commit_reboot = false;
+            ESP_LOGI(TAG, "Recebeu STO_CREDENTIALSAVED, gerando SOCKET_REBOOT.");
+            EventBus::post(EventDomain::SOCKET, EventId::SOCKET_REBOOT);
         }
         if (evt==EventId::STO_DEVICESAVED){
             std::string json = StorageManager::buildJSONDevice(data);
@@ -547,7 +553,6 @@ namespace SocketManager {
         }
         if (ret != ESP_OK) {ESP_LOGI(TAG,"onStorageEvent RETURN=%s",esp_err_to_name(ret));}
     }
-    // Inicialização
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Socket Manager...");
         EventBus::regHandler(EventDomain::WEB, &onWebEvent, nullptr);

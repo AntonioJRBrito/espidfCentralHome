@@ -24,7 +24,6 @@
 #include "storage_manager.hpp"
 #include "freertos/timers.h"
 
-
 namespace NetManager
 {
     esp_err_t init();

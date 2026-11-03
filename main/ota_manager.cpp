@@ -6,7 +6,7 @@ namespace OtaManager {
     #define OTA_CHUNK_SIZE 102400
     #define OTA_TIMEOUT_MS 90000
     #define OTA_BUFFER_SIZE 10240
-    std::string frmVersion="sendFrmAtual(Versão Atual do Firmware: v1_0_000)";
+    std::string frmVersion="sendFrmAtual(Versão Atual do Firmware: v3_0_000)";
     struct OtaTaskParams {std::string filename;int client_fd;
 };
     static void ota_download_task(void* pvParameters) {
@@ -42,44 +42,54 @@ namespace OtaManager {
     }
     std::vector<std::string> fetchFirmwareList() {
         std::vector<std::string> firmware_list;
-        const Page* cert_page = StorageManager::getPage("cert");
-        if(!cert_page||!cert_page->data){ESP_LOGE(TAG,"fetchFirmwareList: certificado não encontrado na PSRAM");return firmware_list;}
         char* response_buffer = (char*)heap_caps_malloc(10240, MALLOC_CAP_SPIRAM);
-        if (!response_buffer) {ESP_LOGE(TAG, "fetchFirmwareList: falha ao alocar buffer na PSRAM");return firmware_list;}
+        if (!response_buffer) {
+            ESP_LOGE(TAG, "fetchFirmwareList: falha ao alocar buffer na PSRAM");
+            return firmware_list;
+        }
         esp_http_client_config_t config = {};
         config.url = "https://ia.srv.br/firmware/central/version.vrs";
         config.timeout_ms = 10000;
         config.buffer_size = 1024;
-        config.cert_pem = (const char*)cert_page->data;
-        config.cert_len = cert_page->size;
-        config.skip_cert_common_name_check = false;
+        config.crt_bundle_attach = esp_crt_bundle_attach; 
         config.transport_type = HTTP_TRANSPORT_OVER_SSL;
         esp_http_client_handle_t client = esp_http_client_init(&config);
-        if (!client) {ESP_LOGE(TAG, "fetchFirmwareList: falha ao inicializar cliente HTTP");free(response_buffer);return firmware_list;}
-        esp_err_t ret = esp_http_client_open(client,0);
-        if(ret!=ESP_OK){ESP_LOGE(TAG,"FList: falhou - %s",esp_err_to_name(ret));esp_http_client_cleanup(client);free(response_buffer);return firmware_list;}
-        int content_length = esp_http_client_fetch_headers(client);
-        if (content_length <= 0 || content_length > 10240) {
-            ESP_LOGE(TAG, "FList: content_length inválido %d", content_length);
-            esp_http_client_close(client);
+        if (!client) {
+            ESP_LOGE(TAG, "fetchFirmwareList: falha ao inicializar cliente HTTP");
+            free(response_buffer);
+            return firmware_list;
+        }
+        esp_err_t ret = esp_http_client_open(client, 0);
+        if(ret != ESP_OK) {
+            ESP_LOGE(TAG, "FList: falhou - %s", esp_err_to_name(ret));
             esp_http_client_cleanup(client);
             free(response_buffer);
             return firmware_list;
         }
+        int content_length = esp_http_client_fetch_headers(client);
+        if (content_length > 10240) {
+            ESP_LOGW(TAG, "FList: content_length (%d) maior que buffer. Pode ser truncado.", content_length);
+        }
         int total_read = 0;
         int bytes_read = 0;
-        while((bytes_read=esp_http_client_read(client,response_buffer+total_read,10240-total_read-1))>0){total_read+=bytes_read;}
+        while((bytes_read = esp_http_client_read(client, response_buffer + total_read, 10240 - total_read - 1)) > 0) {
+            total_read += bytes_read;
+        }
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
-        if(total_read<=0){ESP_LOGE(TAG,"FList: nenhum dado recebido");free(response_buffer);return firmware_list;}
+        if(total_read <= 0) {
+            ESP_LOGE(TAG, "FList: nenhum dado recebido");
+            free(response_buffer);
+            return firmware_list;
+        }
         response_buffer[total_read] = '\0';
         ESP_LOGI(TAG, "FList: resposta recebida (%d bytes)", total_read);
         const char* pos = response_buffer;
         while (*pos != '\0') {
             const char* line_end = strchr(pos, '\n');
-            if (!line_end) {line_end = response_buffer + total_read;}
+            if (!line_end) { line_end = response_buffer + total_read; }
             const char* actual_end = line_end;
-            if (actual_end > pos && *(actual_end - 1) == '\r') {actual_end--;}
+            if (actual_end > pos && *(actual_end - 1) == '\r') { actual_end--; }
             size_t line_len = actual_end - pos;
             if (line_len > 0 && *pos != '#') {
                 std::string filename(pos, line_len);
@@ -137,6 +147,8 @@ namespace OtaManager {
         esp_http_client_config_t config = {};
         config.url = url.c_str();
         config.timeout_ms = OTA_TIMEOUT_MS;
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+        config.transport_type = HTTP_TRANSPORT_OVER_SSL;
         esp_http_client_handle_t client = esp_http_client_init(&config);
         if (!client) return -1;
         esp_http_client_set_method(client, HTTP_METHOD_HEAD);
@@ -158,6 +170,8 @@ namespace OtaManager {
         config.url = url.c_str();
         config.timeout_ms = OTA_TIMEOUT_MS;
         config.buffer_size = OTA_BUFFER_SIZE;
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+        config.transport_type = HTTP_TRANSPORT_OVER_SSL;
         esp_http_client_handle_t client = esp_http_client_init(&config);
         if (!client) {ESP_LOGE(TAG, "performOtaDownload: falha ao inicializar cliente HTTP");return false;}
         esp_err_t ret = esp_http_client_open(client, 0);
@@ -249,7 +263,7 @@ namespace OtaManager {
     void downloadFirmware(const std::string& filename, int client_fd) {
         ESP_LOGI(TAG, "downloadFirmware: iniciado para %s", filename.c_str());
         SocketManager::sendToClient(client_fd, "msgFirmwareIniciando atualização de firmware!");
-        std::string url = "http://server.ia.srv.br/firmware/central/" + filename;
+        std::string url = "https://ia.srv.br/firmware/central/" + filename;
         if (!performOtaDownload(url, client_fd)) {
             SocketManager::sendToClient(client_fd, "msgFirmwareErro na instalação!");
             return;

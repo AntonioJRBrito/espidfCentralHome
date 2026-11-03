@@ -25,6 +25,7 @@
         const labelwifi=document.getElementById('labelNomewifi');
         const host="HOST:"+window.location.hostname;
         const divAguarde=document.getElementById("divAguarde");
+        const divConectada=document.getElementById("divConectada");
         // comportamentos
         document.getElementById('imgLogin').addEventListener('click',showPass);
         document.getElementById('imgSenha').addEventListener('click',showPass);
@@ -172,6 +173,9 @@
               const msg=event.data.substring(4);
               MACid=msg;
             }
+            if(event.data.startsWith("CONECTADA")){
+              divConectada.style.display='none';
+            }
             if(event.data.startsWith("keep")){
               socket.send("alive");
             }
@@ -281,17 +285,19 @@
       </form>
     </div>
     <div id="divIndex" class="util">
-      <div class="form-group" id="divAguarde"><div id="iconeAguarde"></div></div>
       <form name="formWIFI" id="formWIFI" action="/SET/wifi" method="GET">
-        <div class="form-group">
-          <label for="nomewifi" id="labelNomewifi">Rede WiFi:</label>
-          <select name="nomewifi" id="nomewifi" required maxlength="50"></select>
-        </div>
-        <div class="form-group">
-          <label for="inpSenha" id="labelSenha">Senha do WiFi:</label>
-          <div class="input-with-image">
-            <input type="password" required name="inpSenha" id="inpSenha" maxlength="50">
-            <div id="imgSenha" class="img-over-input"></div>
+        <div id="divConectada">
+          <div class="form-group" id="divAguarde"><div id="iconeAguarde"></div></div>
+          <div class="form-group">
+            <label for="nomewifi" id="labelNomewifi">Rede WiFi:</label>
+            <select name="nomewifi" id="nomewifi" required maxlength="50"></select>
+          </div>
+          <div class="form-group">
+            <label for="inpSenha" id="labelSenha">Senha do WiFi:</label>
+            <div class="input-with-image">
+              <input type="password" required name="inpSenha" id="inpSenha" maxlength="50">
+              <div id="imgSenha" class="img-over-input"></div>
+            </div>
           </div>
         </div>
         <div class="form-group">

@@ -20,7 +20,6 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-
 namespace HueManager
 {
     // Constantes

@@ -4,13 +4,11 @@
 static const char* TAG = "StorageManager";
 
 namespace StorageManager {
-    // Declaração dos ponteiros globais que serão alocados na PSRAM
     GlobalConfig* cfg = nullptr;
     IDConfig* id_cfg = nullptr;
     CredentialConfig* cd_cfg = nullptr;
     WifiScanCache* scanCache = nullptr;
     char* schedule_json_psram = nullptr;
-    // Variáveis estáticas do módulo
     static QueueHandle_t s_storage_queue = nullptr;
     static SemaphoreHandle_t s_flash_mutex = nullptr;
     static std::unordered_map<std::string, Page*> pageMap;
@@ -18,7 +16,6 @@ namespace StorageManager {
     static std::unordered_map<std::string, Sensor*>* sensorMap = nullptr;
     std::unordered_map<std::string, Automation*>* automationMap = nullptr;
     static bool StartedMQTT = false;
-    // --- Funções de Utilidade ---
     bool isBlankOrEmpty(const char* str) {
         if (str == nullptr || str[0] == '\0') {return true;}
         for (size_t i = 0; str[i] != '\0'; ++i) {if (!isspace(static_cast<unsigned char>(str[i]))) {return false;}}
@@ -59,7 +56,6 @@ namespace StorageManager {
         else if(strcmp(StorageManager::cfg->token_flag,"1")==0){return (password==StorageManager::cfg->token_password);}
         return false;
     }
-    // --- Gerenciamento de Páginas Web ---
     void registerPage(const char* uri, Page* p) {
         pageMap[uri] = p;
         ESP_LOGI(TAG, "Página registrada: %s (%zu bytes, %s)", uri, p->size, p->mime.c_str());
@@ -68,7 +64,6 @@ namespace StorageManager {
         auto it = pageMap.find(uri);
         return (it != pageMap.end()) ? it->second : nullptr;
     }
-    // --- Gerenciamento de Dispositivos ---
     void registerDevice(Device* device) {
         auto it = deviceMap->find(std::string(device->id));
         if (it != deviceMap->end()) {
@@ -78,12 +73,10 @@ namespace StorageManager {
         (*deviceMap)[std::string(device->id)] = device;
         ESP_LOGI(TAG, "Disp regist:(ID=%s)(Nome=%s)(Tipo=%d)(Status=%d)(Tempo=%d)(x_int=%d)(x_str=%s)",device->id,device->name,device->type,device->status,device->time,device->x_int,device->x_str);
     }
-    // Função pública para obter dispositivo
     const Device* getDevice(const std::string& id) {
         auto it = deviceMap->find(id);
         return (it != deviceMap->end()) ? it->second : nullptr;
     }
-    // Função interna para obter dispositivo
     static Device* getMutableDeviceInternal(const std::string& id) {
         auto it = deviceMap->find(id);
         return (it != deviceMap->end()) ? it->second : nullptr;
@@ -229,7 +222,6 @@ namespace StorageManager {
             }
         }
     }
-    // --- Gerenciamento de Sensores ---
     void registerSensor(Sensor* sensor) {
         auto it = sensorMap->find(std::string(sensor->id));
         if (it != sensorMap->end()) {
@@ -248,12 +240,10 @@ namespace StorageManager {
         }
         ESP_LOGI(TAG, "Sensor registrado:(ID=%s)(Nome=%s)(Tipo=%d)(tempo=%d)(x_int=%d)(x_str=%s)",sensor->id,sensor->name,sensor->type,sensor->time,sensor->x_int,sensor->x_str);
     }
-    // Função pública para obter sensor
     const Sensor* getSensor(const std::string& id) {
         auto it = sensorMap->find(id);
         return (it != sensorMap->end()) ? it->second : nullptr;
     }
-    // Função interna para obter sensor
     static Sensor* getMutableSensorInternal(const std::string& id) {
         auto it = sensorMap->find(id);
         return (it != sensorMap->end()) ? it->second : nullptr;
@@ -261,12 +251,10 @@ namespace StorageManager {
     size_t getSensorCount() {
         return sensorMap->size();
     }
-    // --- Funções de Automação ---
     const std::vector<DeviceAction>* getAutomationBySensor(const std::string& sensor_id) {
         auto it = automationMap->find(sensor_id);
         return (it != automationMap->end()) ? it->second->actions : nullptr;
     }
-    // --- Handlers de Eventos ---
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_IFOK) {
@@ -277,20 +265,8 @@ namespace StorageManager {
         }else if (evt == EventId::NET_STAGOTIP) {
             ESP_LOGI(TAG, "Network IP recebido → montar páginas Alexa...");
             Storage::initAlexa();
-        }else if (evt == EventId::NET_RTCYEAR) {
-            ESP_LOGI(TAG, "Network ano recebido → montar página Certificado...");
-            int year = *(int*)data; 
-            esp_err_t retCert = Storage::initCertificado(year);
-            if (retCert == ESP_OK) {
-                ESP_LOGI(TAG,"Certficado carregado");
-            }else{
-                esp_err_t retNewCert = Storage::loadNewCert();
-                if (retNewCert == ESP_OK) {ESP_LOGI(TAG,"Certficado carregado");}
-                else {ESP_LOGE(TAG,"Dificuldades ao carregar Certficado");}
-            }
         }
     }
-    // --- Handler de inicio do MQTT ---
     void onMQTTEvent(void*, esp_event_base_t, int32_t id, void*) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::MQT_CONNECTED) {
@@ -303,7 +279,6 @@ namespace StorageManager {
             StartedMQTT = false;
         }
     }
-    // --- Enfileiramento de Requisições ---
     esp_err_t enqueueRequest(StorageCommand cmd, StorageStructType type, const void* data_to_copy, size_t data_len, RequestSave requester, EventId response_event_id) {
         void* data_buffer = nullptr;
         if (data_to_copy && data_len > 0) {
@@ -326,7 +301,6 @@ namespace StorageManager {
         ESP_LOGD(TAG, "Requisição enfileirada: Comando=%d, Tipo=%d", static_cast<int>(cmd), static_cast<int>(type));
         return ESP_OK;
     }
-    // --- Fila de Armazenamento (storage_task) ---
     static void storage_task(void* arg) {
         StorageRequest request;
         ESP_LOGI(TAG, "Storage Task iniciada.");
@@ -510,10 +484,8 @@ namespace StorageManager {
             }
         }
     }
-    // --- Inicialização do Módulo ---
     esp_err_t init() {
         ESP_LOGI(TAG, "Inicializando Storage Manager...");
-        // 1. Alocação e inicialização dos objetos globais na PSRAM
         cfg = (GlobalConfig*)heap_caps_calloc(1, sizeof(GlobalConfig), MALLOC_CAP_SPIRAM);
         if (!cfg) { ESP_LOGE(TAG, "Falha ao alocar GlobalConfig na PSRAM"); return ESP_ERR_NO_MEM; }
         ESP_LOGI(TAG, "GlobalConfig alocado na PSRAM.");
@@ -537,26 +509,21 @@ namespace StorageManager {
         }
         scanCache->networks_html_ptr[0] = '\0';
         ESP_LOGI(TAG, "Buffer HTML para WifiScanCache alocado na PSRAM.");
-        // 2. Inicialização de IDConfig com MAC e ID do dispositivo (não persistido)
         uint8_t mac[6];
         esp_read_mac(mac, ESP_MAC_WIFI_STA);
         snprintf(id_cfg->mac, sizeof(id_cfg->mac), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         snprintf(id_cfg->id, sizeof(id_cfg->id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         ESP_LOGI(TAG, "IDConfig inicializado com MAC: %s, ID: %s", id_cfg->mac, id_cfg->id);
-        // 3. Montagem do sistema de arquivos (LittleFS)
         ESP_LOGI(TAG, "Montando Storage físico (LittleFS)...");
         esp_err_t ret = Storage::init();
         if (ret != ESP_OK) { ESP_LOGE(TAG, "Falha ao inicializar Storage físico"); return ret; }
         ESP_LOGI(TAG, "Storage físico inicializado.");
-        // 4. Criação da fila de requisições
         s_storage_queue = xQueueCreate(10, sizeof(StorageRequest));
         if (s_storage_queue == nullptr) { ESP_LOGE(TAG, "Falha ao criar fila de armazenamento!"); return ESP_FAIL; }
         ESP_LOGI(TAG, "Fila de armazenamento criada.");
-        // 5. Criação do mutex para acesso à flash
         s_flash_mutex = xSemaphoreCreateMutex();
         if (s_flash_mutex == nullptr) { ESP_LOGE(TAG, "Falha ao criar mutex da flash!"); vQueueDelete(s_storage_queue); return ESP_FAIL; }
         ESP_LOGI(TAG, "Mutex da flash criado.");
-        // 6. Criação da task de armazenamento
         BaseType_t xReturned = xTaskCreate(storage_task, "storage_task", 4096, nullptr, 5, nullptr);
         if (xReturned != pdPASS) {
             ESP_LOGE(TAG, "Falha ao criar task de storage!");
@@ -565,13 +532,10 @@ namespace StorageManager {
             return ESP_FAIL;
         }
         ESP_LOGI(TAG, "Task de storage criada.");
-        // 7. Registro do handler de eventos de rede
         EventBus::regHandler(EventDomain::NETWORK, &onNetworkEvent, nullptr);
         ESP_LOGI(TAG, "Handler de eventos de rede registrado.");
-        // 8. Registro do handler de eventos do MQTT
         EventBus::regHandler(EventDomain::MQTT, &onMQTTEvent, nullptr);
         ESP_LOGI(TAG, "Handler de eventos MQTT registrado.");
-        // 9. Posta evento de ready
         EventBus::post(EventDomain::READY, EventId::STO_READY);
         ESP_LOGI(TAG, "→ STO_READY publicado");
         return ESP_OK;

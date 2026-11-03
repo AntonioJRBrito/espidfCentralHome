@@ -225,7 +225,6 @@ namespace Storage {
         const char* file_path = full_path.c_str();
         FILE* f = fopen(file_path, "w");
         if (!f) {ESP_LOGE(TAG, "Falha ao abrir arquivo para escrita: %s", file_path);return ESP_FAIL;}
-        // ainda tem que ver como sensor vem...
         fprintf(f, "%s\n", sensor->name);
         fprintf(f, "%u\n", sensor->type);
         fprintf(f, "%s\n", sensor->x_str);
@@ -392,6 +391,34 @@ namespace Storage {
         nvs_close(handle);
         ESP_LOGI(TAG, "NVS inicializada com valores padrão");
     }
+    static void resetNativeDeviceFiles() {
+        const int dev_types[3] = {1, 2, 3};
+        for (int i = 1; i <= 3; i++) {
+            std::string path = "/littlefs/device/" + std::to_string(i);
+            FILE* f = fopen(path.c_str(), "w");
+            if (f) {
+                fprintf(f, "Dispositivo %d\n%d\n\n0\n", i, dev_types[i - 1]);
+                fclose(f);
+            }
+        }
+        FILE* f4 = fopen("/littlefs/sensor/4", "w");
+        if (f4) {
+            fprintf(f4, "Sensor da Central\n8\n\n");
+            fclose(f4);
+        }
+    }
+    static void resetGlobalConfigFile() {
+        const char* path = "/littlefs/config/config";
+        remove(path);
+        FILE* f = fopen(path, "w");
+        if (f) {
+            fprintf(f, "CTR_IASoluces\nnotoken\n\n0\n");
+            fclose(f);
+            ESP_LOGI(TAG, "Configuração da Central restaurada para o padrão em %s", path);
+        } else {
+            ESP_LOGE(TAG, "Falha ao sobrescrever %s", path);
+        }
+    }
     esp_err_t factoryReset() {
         std::vector<std::string> device_ids = StorageManager::getDeviceIds();
         for (const auto& dev_id : device_ids) {
@@ -405,6 +432,8 @@ namespace Storage {
             std::string sen_path = "/littlefs/sensor/" + sen_id;
             if (remove(sen_path.c_str()) == 0) {ESP_LOGI(TAG, "Sensor '%s' removido de LittleFS", sen_id.c_str());}
         }
+        resetNativeDeviceFiles();
+        resetGlobalConfigFile();
         if(remove("/littlefs/config/schedule")==0){ESP_LOGI(TAG,"Schedule removido");}else{ESP_LOGW(TAG,"Schedule não encontrado");}
         if(remove("/littlefs/config/automation")==0){ESP_LOGI(TAG,"Automation removido");}else{ESP_LOGW(TAG,"Automation não encontrado");}
         if(remove("/littlefs/config/credential")==0){ESP_LOGI(TAG,"Credential removido");}else{ESP_LOGW(TAG,"Credential não encontrado");}
@@ -412,22 +441,6 @@ namespace Storage {
         esp_err_t err = nvs_open("values", NVS_READWRITE, &handle);
         if(err==ESP_OK){nvs_erase_all(handle);nvs_commit(handle);nvs_close(handle);}
         return ESP_OK;
-    }
-    static int extractYearFromCertificate(const char* cert_pem) {
-        if (!cert_pem) return -1;
-        const char* not_after = strstr(cert_pem, "NotAfter");
-        if (!not_after) {ESP_LOGW(TAG,"NotAfter não encontrado no certificado");return -1;}
-        const char* year_pos = not_after;
-        int year = 0;
-        while (*year_pos != '\0') {
-            if (isdigit(year_pos[0]) && isdigit(year_pos[1]) && isdigit(year_pos[2]) && isdigit(year_pos[3])) {
-                year = atoi(year_pos);
-                if(year>=2020 && year<=2050){ESP_LOGI(TAG,"Ano do certificado extraído: %d",year);return year;}
-            }
-            year_pos++;
-        }
-        ESP_LOGW(TAG, "Ano válido não encontrado no certificado");
-        return -1;
     }
     esp_err_t init(){
         esp_err_t err = nvs_flash_init();
@@ -472,63 +485,6 @@ namespace Storage {
         loadFileToPsram("/littlefs/ha/devices.json","devices.json","application/json",true);
         loadFileToPsram("/littlefs/ha/device.json","device.json","application/json",true);
         ESP_LOGI(TAG, "Arquivos Alexa carregados na PSRAM.");
-        return ESP_OK;
-    }
-    esp_err_t initCertificado(int year) {
-        ESP_LOGI(TAG,"initCertificado: ano atual = %d",year);
-        FILE* f = fopen("/littlefs/CERT","r");
-        if (!f) {ESP_LOGE(TAG,"Falha ao abrir /littlefs/CERT");return ESP_FAIL;}
-        char* cert_buffer = (char*)heap_caps_malloc(2048, MALLOC_CAP_SPIRAM);
-        if(!cert_buffer){ESP_LOGE(TAG,"Falha ao alocar buffer para certificado");fclose(f);return ESP_ERR_NO_MEM;}
-        size_t bytes_read = fread(cert_buffer, 1, 2047, f);
-        fclose(f);
-        if(bytes_read==0){ESP_LOGE(TAG,"Certificado vazio");free(cert_buffer);return ESP_FAIL;}
-        cert_buffer[bytes_read] = '\0';
-        int year_cert = extractYearFromCertificate(cert_buffer);
-        if(year_cert==-1){ESP_LOGE(TAG,"Falha ao extrair ano do certificado");free(cert_buffer);return ESP_FAIL;}
-        if(year_cert>=year){ESP_LOGI(TAG,"Certificado válido para o ano %d",year);}
-        else{ESP_LOGW(TAG,"Certificado expirado ou inválido.");free(cert_buffer);return ESP_FAIL;}
-        loadFileToPsram("/littlefs/CERT","cert","text",true);
-        ESP_LOGI(TAG,"Arquivo de certificado carregado na PSRAM.");
-        return ESP_OK;
-    }
-    esp_err_t loadNewCert() {
-        if(remove("/littlefs/CERT")==0){ESP_LOGI(TAG,"Certificado antigo removido");}else{ESP_LOGW(TAG,"Certificado não encontrado");}
-        char* response_buffer = (char*)heap_caps_malloc(10240, MALLOC_CAP_SPIRAM);
-        if (!response_buffer) {ESP_LOGE(TAG, "storage: falha ao alocar buffer de certificado na PSRAM");return ESP_ERR_NO_MEM;}
-        esp_http_client_config_t config = {
-            .url = "http://ia.srv.br/firmware/central/CERT",
-            .timeout_ms = 20000,
-            .buffer_size = 10240,
-            .skip_cert_common_name_check = true
-        };
-        esp_http_client_handle_t client = esp_http_client_init(&config);
-        if (!client) {ESP_LOGE(TAG,"CERT: falha ao inicializar cliente HTTP");free(response_buffer);return ESP_ERR_HTTP_CONNECT;}
-        esp_err_t ret = esp_http_client_open(client,0);
-        if(ret!=ESP_OK){ESP_LOGE(TAG,"CERT: download falhou");esp_http_client_cleanup(client);free(response_buffer);return ESP_ERR_HTTP_CONNECTION_CLOSED;}
-        int content_length = esp_http_client_fetch_headers(client);
-        if (content_length <= 0 || content_length > 10240) {
-            ESP_LOGE(TAG, "CERT: content_length inválido %d", content_length);
-            esp_http_client_close(client);
-            esp_http_client_cleanup(client);
-            free(response_buffer);
-            return ESP_ERR_HTTP_EAGAIN;
-        }
-        int total_read = 0;
-        int bytes_read = 0;
-        while((bytes_read=esp_http_client_read(client,response_buffer+total_read,10240-total_read-1))>0){total_read+=bytes_read;}
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
-        if(total_read<=0){ESP_LOGE(TAG,"CERT: nenhum dado recebido");free(response_buffer);return ESP_ERR_INVALID_STATE;}
-        response_buffer[total_read] = '\0';
-        ESP_LOGI(TAG, "FList: resposta recebida (%d bytes)", total_read);
-        FILE* f = fopen("/littlefs/CERT","w");
-        if(!f){ESP_LOGE(TAG,"CERT: falha ao abrir arquivo para escrita");free(response_buffer);return ESP_ERR_INVALID_STATE;}
-        size_t written = fwrite(response_buffer, 1, total_read, f);
-        if(written!=(size_t)total_read){ESP_LOGE(TAG, "CERT: falha na escrita",);fclose(f);free(response_buffer);return ESP_ERR_INVALID_STATE;}
-        fclose(f);
-        free(response_buffer);
-        ESP_LOGI(TAG, "CERT: salvo com sucesso em /littlefs/CERT (%d bytes)", total_read);
         return ESP_OK;
     }
 }

@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_partition.h"
 #include "esp_crc.h"
+#include "esp_crt_bundle.h"
 
 namespace OtaManager
 {

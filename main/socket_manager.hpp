@@ -26,11 +26,9 @@
 #include "storage_manager.hpp"
 
 namespace SocketManager {
-    // inits
     esp_err_t init();
     esp_err_t start(httpd_handle_t server);
     esp_err_t stop();
-    // Envia mensagem
     esp_err_t sendToClient(int fd, const char* message);
     void broadcastToAllClients(const char* message);
     static void kill_client_task(void* arg);
@@ -39,7 +37,6 @@ namespace SocketManager {
     static void set_client_from_ap(int fd,bool from_ap);
     static void suspend_ap_for_seconds(uint32_t seconds);
     static void ap_suspend_resume_cb(void* arg);
-    // Struct para fd e AID
     struct WebSocketClient {
         int fd; uint32_t aid; bool from_ap; 
         WebSocketClient(int file_descriptor, uint32_t association_id = 0) : fd(file_descriptor), aid(association_id), from_ap(false) {}

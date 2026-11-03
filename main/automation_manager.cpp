@@ -34,7 +34,6 @@ namespace AutomationManager {
             }
         }
     }
-    // Automation
     static void automation_task(void* pvParameters) {
         AutomationTaskParams* params = (AutomationTaskParams*)pvParameters;
         ESP_LOGI(TAG,"sizeof(SensorEventData)=%zu, offset inform=%zu", sizeof(AutomationTaskParams), offsetof(AutomationTaskParams, inform));
@@ -47,7 +46,6 @@ namespace AutomationManager {
         free(params);
         vTaskDelete(NULL);
     }
-    // Schedule
     static void scheduleTimerCallback(void* arg) {
         ESP_LOGW(TAG,"Timer callback executado");
         for(const auto& [device_id, action]:schedule_now.devices_to_trigger){executeAction(device_id.c_str(),action,2);}
@@ -121,7 +119,6 @@ namespace AutomationManager {
         free(ct);
         vTaskDelete(NULL);
     }
-    // Evento Automation  
     static void onEventAutomationBus(void*,esp_event_base_t base,int32_t id,void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::AUT_DETECTSENSOR) {
@@ -132,7 +129,6 @@ namespace AutomationManager {
             xTaskCreatePinnedToCore(automation_task,"automation_task",4096,params,5,NULL,1);
         }
     }
-    // Evento Schedule
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void* event_data) {
         EventId evt = static_cast<EventId>(id);
         if(evt == EventId::NET_RTCSYNCED){
@@ -147,7 +143,6 @@ namespace AutomationManager {
             }
         }
     }
-    // Init
     esp_err_t init(){
         ESP_LOGI(TAG, "Inicializando Automation...");
         esp_timer_create_args_t timer_args={.callback=scheduleTimerCallback,.arg=nullptr,.dispatch_method=ESP_TIMER_TASK,.name="schedule_timer"};

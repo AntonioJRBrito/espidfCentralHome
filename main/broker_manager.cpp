@@ -2,16 +2,12 @@
 
 static const char* TAG = "BrokerManager";
 namespace BrokerManager {
-    // --- Constantes para Autenticação Fixa ---
     const std::string FIXED_USERNAME = "iacentral";
     const std::string FIXED_PASSWORD = "iapass";
     static TaskHandle_t s_broker_listener_task_handle = NULL;
     static bool s_broker_listener_task_created = false;
-    // --- Estruturas de Dados para o Broker ---
     static std::map<std::string, int> s_device_id_to_fd;
-    // Mutex para proteger o acesso a s_device_id_to_fd
     static SemaphoreHandle_t s_broker_data_mutex = NULL;
-    // Função para remover um cliente e suas associações
     void removeClient(int fd) {
         if (xSemaphoreTake(s_broker_data_mutex, portMAX_DELAY) == pdTRUE) {
             ESP_LOGI(TAG, "Removendo cliente com FD %d", fd);
@@ -24,7 +20,6 @@ namespace BrokerManager {
         }else{ESP_LOGE(TAG, "Falha ao adquirir mutex para remover cliente. Evitando crash.");}
         close(fd);
     }
-    // Função para publicar uma mensagem para um dispositivo específico
     void publish_message_to_device(const std::string& target_device_id, const std::string& payload) {
         if (xSemaphoreTake(s_broker_data_mutex, portMAX_DELAY) == pdTRUE) {
             ESP_LOGD(TAG, "Tentando publicar para Device ID '%s': '%s'", target_device_id.c_str(), payload.c_str());
@@ -32,7 +27,6 @@ namespace BrokerManager {
             if (it != s_device_id_to_fd.end()) {
                 int target_fd = it->second;
                 std::string topic = "DSP/" + target_device_id;
-                // Calcular Remaining Length
                 uint16_t topic_len = topic.length();
                 uint16_t payload_len = payload.length();
                 int remaining_length = 2 + topic_len + payload_len;
@@ -40,19 +34,13 @@ namespace BrokerManager {
                 int vbi_bytes = 0;
                 int temp_len = remaining_length;
                 do {uint8_t digit = temp_len % 128;temp_len /= 128;if (temp_len > 0) {digit |= 0x80;}vbi_buffer[vbi_bytes++] = digit;} while (temp_len > 0);
-                // Montar o pacote completo
                 std::vector<uint8_t> publish_packet;
                 publish_packet.push_back(0x30);
-                // Adicionar Remaining Length (VBI)
                 for (int i = 0; i < vbi_bytes; ++i) {publish_packet.push_back(vbi_buffer[i]);}
-                // Adicionar Topic Name Length (Big-endian)
                 publish_packet.push_back((topic_len >> 8) & 0xFF);
                 publish_packet.push_back(topic_len & 0xFF);
-                // Adicionar Topic Name
                 for (char c : topic) {publish_packet.push_back(static_cast<uint8_t>(c));}
-                // Adicionar Payload
                 for (char c : payload) {publish_packet.push_back(static_cast<uint8_t>(c));}
-                // Enviar o pacote
                 int sent = send(target_fd, publish_packet.data(), publish_packet.size(), 0);
                 if(sent<0){ESP_LOGE(TAG,"Falha PUB (FD %d)(Device '%s')(tópico '%s':%s)",target_fd,target_device_id.c_str(),topic.c_str(),strerror(errno));removeClient(target_fd);}
                 else{ESP_LOGI(TAG,"PUBLISH enviado FD %d (Device ID '%s') no tópico '%s' (len %d)",target_fd,target_device_id.c_str(),topic.c_str(),sent);}
@@ -60,7 +48,6 @@ namespace BrokerManager {
             xSemaphoreGive(s_broker_data_mutex);
         }else{ESP_LOGE(TAG, "Falha ao adquirir mutex para publicar mensagem. Evitando crash.");}
     }
-    // Retorna o comprimento e o número de bytes lidos para o comprimento
     static std::pair<int, int> decode_variable_byte_integer(const uint8_t* buffer, int* offset, int max_buffer_len) {
         int multiplier = 1;
         int value = 0;
@@ -77,7 +64,6 @@ namespace BrokerManager {
         } while ((encoded_byte & 128) != 0);
         return { value, bytes_read };
     }
-    // Função para ler uma string MQTT
     static std::string read_mqtt_string(const uint8_t* buffer, int* offset, int max_buffer_len) {
         if (*offset + 2 > max_buffer_len) return "";
         uint16_t len = (buffer[*offset] << 8) | buffer[*offset + 1];
@@ -88,7 +74,6 @@ namespace BrokerManager {
         *offset += len;
         return str;
     }
-    // Função para construir e enviar um pacote CONNACK
     static void send_connack(int fd, uint8_t return_code) {
         uint8_t connack_packet[4];
         connack_packet[0]=0x20;connack_packet[1]=0x02;connack_packet[2]=0x00;connack_packet[3]=return_code;
@@ -96,7 +81,6 @@ namespace BrokerManager {
         if (sent < 0) {ESP_LOGE(TAG, "Falha ao enviar CONNACK para FD %d: %s", fd, strerror(errno));}
         else {ESP_LOGI(TAG, "CONNACK enviado para FD %d com código %d", fd, return_code);}
     }
-    // Função para construir e enviar um pacote SUBACK
     static void send_suback(int fd, uint16_t packet_id, uint8_t return_code) {
         uint8_t suback_packet[5];
         suback_packet[0]=0x90;suback_packet[1]=0x03;suback_packet[2]=(packet_id >> 8) & 0xFF;suback_packet[3]=packet_id & 0xFF;suback_packet[4]=return_code;
@@ -104,7 +88,6 @@ namespace BrokerManager {
         if (sent < 0) {ESP_LOGE(TAG, "Falha ao enviar SUBACK para FD %d (Packet ID %d): %s", fd, packet_id, strerror(errno));}
         else {ESP_LOGI(TAG, "SUBACK enviado para FD %d (Packet ID %d) com código %d", fd, packet_id, return_code);}
     }
-    // --- Tarefa para lidar com um cliente MQTT individual ---
     void client_handler_task(void *pvParameters) {
         int client_fd = (int)pvParameters;
         std::string client_devsen_id;
@@ -161,10 +144,6 @@ namespace BrokerManager {
             return;
         }
         uint8_t connect_flags = rx_buffer[offset++];
-        // bool clean_session = (connect_flags >> 1) & 0x01;  //mantenho?
-        // bool will_flag = (connect_flags >> 2) & 0x01;      //mantenho?
-        // uint8_t will_qos = (connect_flags >> 3) & 0x03;
-        // bool will_retain = (connect_flags >> 5) & 0x01;    //mantenho?
         bool password_flag = (connect_flags >> 6) & 0x01;
         bool username_flag = (connect_flags >> 7) & 0x01;
         keep_alive_seconds = (rx_buffer[offset] << 8) | rx_buffer[offset + 1];
@@ -185,11 +164,6 @@ namespace BrokerManager {
             vTaskDelete(NULL);
             return;
         }
-        // if (will_flag) {  //mantenho?
-        //     std::string will_topic = read_mqtt_string(rx_buffer.data(), &offset, current_buffer_len);
-        //     std::string will_message = read_mqtt_string(rx_buffer.data(), &offset, current_buffer_len);
-        //     ESP_LOGD(TAG, "FD %d: Will Topic: '%s', Will Message: '%s' (ignorado)", client_fd, will_topic.c_str(), will_message.c_str());
-        // }
         std::string username_rx;
         if (username_flag) {username_rx = read_mqtt_string(rx_buffer.data(), &offset, current_buffer_len);}
         std::string password_rx;
@@ -219,7 +193,6 @@ namespace BrokerManager {
             vTaskDelete(NULL);
             return;
         }
-        // segundo protocolo, 1s +/- 0,5s. Posso colocar 2s?
         send_connack(client_fd, 0x00);
         recv_timeout_ms = (keep_alive_seconds * 1000) + (keep_alive_seconds * 1000 / 2);
         if (recv_timeout_ms == 0) recv_timeout_ms = portMAX_DELAY;
@@ -257,7 +230,6 @@ namespace BrokerManager {
                     if (topic.rfind(expected_topic_prefix, 0) == 0 && topic.length() > expected_topic_prefix.length()) {
                         std::string received_device_id_from_topic = topic.substr(expected_topic_prefix.length());
                         if (received_device_id_from_topic == client_devsen_id) {
-                            // O payload pode ser REG, INF, SEN, SNA, STM, STA, ACT, BRG
                             if(payload=="REG"){
                                 ESP_LOGI(TAG,"Payload REG recebido de '%s'.",client_devsen_id.c_str());
                                 publish_message_to_device(received_device_id_from_topic,"INF");
@@ -411,7 +383,6 @@ namespace BrokerManager {
                 }
                 case 0x08: {
                     ESP_LOGI(TAG, "SUBSCRIBE recebido de FD %d (Device ID '%s').", client_fd, client_devsen_id.c_str());
-                    // fazer o Parsing do pacote SUBSCRIBE
                     uint16_t packet_id = (rx_buffer[offset] << 8) | rx_buffer[offset + 1];
                     offset += 2;
                     std::string requested_topic = read_mqtt_string(rx_buffer.data(), &offset, current_buffer_len);
@@ -446,7 +417,6 @@ namespace BrokerManager {
         removeClient(client_fd);
         vTaskDelete(NULL);
     }
-    // --- Tarefa que escuta por novas conexões TCP para o broker ---
     void broker_listener_task(void *pvParameters) {
         s_broker_listener_task_handle = xTaskGetCurrentTaskHandle();
         char addr_str[128];
@@ -502,7 +472,6 @@ namespace BrokerManager {
         s_broker_listener_task_handle = NULL;
         vTaskDelete(NULL);
     }
-    // --- Parar o listener ---
     void stopBrokerListener() {
         if (s_broker_listener_task_created) {
             ESP_LOGI(TAG, "Parando tarefa do Broker Listener e fechando clientes.");
@@ -528,7 +497,6 @@ namespace BrokerManager {
             ESP_LOGI(TAG, "Broker Listener parado.");
         }
     }
-    // --- Handler de Eventos do Broker ---
     static void onEventBrokerBus(void*, esp_event_base_t base, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::BRK_PUBLISHREQUEST) {
@@ -538,7 +506,6 @@ namespace BrokerManager {
             else{ESP_LOGE(TAG, "BRK_PUBLISHREQUEST com dados inválidos.");}
         }
     }
-    // --- Handler de Eventos do Network ---
     static void onEventNetworkBus(void*, esp_event_base_t base, int32_t id, void* data) {
         EventId evt = static_cast<EventId>(id);
         if (evt == EventId::NET_STAGOTIP) {
@@ -554,7 +521,6 @@ namespace BrokerManager {
             stopBrokerListener();
         }
     }
-    // --- Função de Inicialização do Módulo BrokerManager ---
     esp_err_t init(){
         ESP_LOGI(TAG, "Inicializando BrokerManager...");
         EventBus::regHandler(EventDomain::NETWORK, &onEventNetworkBus, nullptr);

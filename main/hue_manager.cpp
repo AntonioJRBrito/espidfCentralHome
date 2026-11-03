@@ -121,7 +121,6 @@ namespace HueManager {
         if (announcer_sock >= 0) {shutdown(announcer_sock, SHUT_RDWR);}
         ESP_LOGI(TAG, "Solicitado stop do announcer");
     }
-
     void stop_ssdp_listener()
     {
         if (listener_task_handle == nullptr) {ESP_LOGW(TAG,"Listener não está rodando");return;}

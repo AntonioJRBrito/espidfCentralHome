@@ -168,14 +168,12 @@ struct AutomationTaskParams {
     uint8_t inform;
 };
 namespace StorageManager {
-    // Ponteiros para as configurações globais na PSRAM
     extern GlobalConfig* cfg;
     extern IDConfig* id_cfg;
     extern CredentialConfig* cd_cfg;
     extern WifiScanCache* scanCache;
     extern std::unordered_map<std::string, Automation*>* automationMap;
     extern char* schedule_json_psram;
-    // Funções de utilidade
     bool isBlankOrEmpty(const char* str);
     bool isWifiCacheValid();
     void invalidateWifiCache();
@@ -192,10 +190,8 @@ namespace StorageManager {
             destino = static_cast<T>(val);
             return true;
         }
-    // Funções para gerenciamento de páginas web
     void registerPage(const char* uri, Page* page);
     const Page* getPage(const char* uri);
-    // Funções para gerenciamento de dispositivos
     void registerDevice(Device* device);
     const Device* getDevice(const std::string& id);
     size_t getDeviceCount();
@@ -206,18 +202,13 @@ namespace StorageManager {
     std::string buildJSONSensors();
     std::string buildJSONSensor(const void* data);
     void actDeviceByPage(std::string message);
-    // Funções para gerenciamento de sensores
     void registerSensor(Sensor* sensor);
     const Sensor* getSensor(const std::string& id);
     size_t getSensorCount();
     std::vector<std::string> getSensorIds();
-    // Funções para automação
     const std::vector<DeviceAction>* getAutomationBySensor(const std::string& sensor_id);
-    // Handlers de eventos
     void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*);
     void onMQTTEvent(void*, esp_event_base_t, int32_t id, void*);
-    // Função para enfileirar requisições de armazenamento
     esp_err_t enqueueRequest(StorageCommand cmd,StorageStructType type,const void* data_to_copy,size_t data_len,RequestSave requester,EventId response_event_id=EventId::NONE);
-    // Função de inicialização
     esp_err_t init();
 }

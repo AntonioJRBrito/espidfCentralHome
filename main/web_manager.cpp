@@ -9,7 +9,6 @@ namespace WebManager {
     static int fd_onclosed = 0;
     static uint32_t current_token = 0;
     static uint32_t gerarTokenNumerico() {return 10000000 + (esp_random() % 90000000);}
-    // Função para decodificar strings URL-encoded
     std::string url_decode(const std::string& encoded_string) {
         std::string decoded_string;
         for (size_t i = 0; i < encoded_string.length(); ++i) {
@@ -32,7 +31,6 @@ namespace WebManager {
         }
         return decoded_string;
     }
-    // Função para extrair um valor de um corpo de requisição POST URL-encoded
     std::string extract_post_param(const std::string& body, const std::string& key) {
         size_t start_pos = 0;
         std::string search_key = key + "=";
@@ -47,7 +45,6 @@ namespace WebManager {
         }
         return "";
     }
-    // --- Handler genérico para servir arquivos estáticos da PSRAM ---
     static esp_err_t serve_static_file_handler(httpd_req_t* req) {
         std::string uri = req->uri;
         if(uri.find("description.xml")!=std::string::npos){
@@ -64,13 +61,11 @@ namespace WebManager {
                         port = ntohs(s->sin_port);
                     } else if (addr.ss_family == AF_INET6) {
                         struct sockaddr_in6 *s6 = (struct sockaddr_in6 *)&addr;
-                        // verifica se é IPv4-mapeado ::ffff:a.b.c.d
                         const unsigned char *b = (const unsigned char *)&s6->sin6_addr;
                         bool is_v4_mapped = (b[0]==0 && b[1]==0 && b[2]==0 && b[3]==0 &&
                                             b[4]==0 && b[5]==0 && b[6]==0 && b[7]==0 &&
                                             b[8]==0 && b[9]==0 && b[10]==0xFF && b[11]==0xFF);
                         if (is_v4_mapped) {
-                            // extrai os últimos 4 bytes como IPv4
                             struct in_addr v4addr;
                             memcpy(&v4addr.s_addr, &b[12], 4);
                             inet_ntop(AF_INET, &v4addr, ipstr, sizeof(ipstr));
@@ -89,7 +84,6 @@ namespace WebManager {
             } else {
                 ESP_LOGE(TAG, "httpd_req_to_sockfd returned invalid fd: %d", sockfd);
             }
-
         }
         if (!uri.empty() && uri.front() == '/') uri.erase(0, 1);
         size_t query_pos = uri.find('?');
@@ -120,7 +114,6 @@ namespace WebManager {
         ESP_LOGW(TAG, "Erro HTTP %d na URI: %s. Redirecionando para a raiz.", error, req->uri);
         return redirect_to_root_handler(req);
     }
-    // --- Handler para redirecionamento de captive portal ---
     static esp_err_t redirect_to_root_handler(httpd_req_t* req) {
         ESP_LOGI(TAG, "Redirecionando %s para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
@@ -164,7 +157,6 @@ namespace WebManager {
         }
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_send(req, response_str.c_str(), response_str.length());
-        // resetShutdownTimer();
         return ESP_OK;
     }
     static esp_err_t get_config_handler(httpd_req_t* req) {
@@ -190,12 +182,10 @@ namespace WebManager {
         httpd_resp_sendstr(req, "Encerrar command received, shutdown timer started/reset.");
         return ESP_OK;
     }
-    // handler GETINFO
     static esp_err_t getinfo_handler(httpd_req_t *req){
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not found");
         return ESP_OK;
     }
-    // --- Handlers para HA ---
     static esp_err_t create_user_handler(httpd_req_t* req){
         std::string username = "user_" + std::string(StorageManager::id_cfg->id);
         std::string response = R"([{"success":{"username":")"+username+R"("}}])";
@@ -277,7 +267,6 @@ namespace WebManager {
         ESP_LOGI(TAG, "Device %d alterada para %s",device_id,new_state ? "1" : "0");
         return ESP_OK;
     }
-    // --- Handler redirecionador para "/" ---
     static esp_err_t not_found_handler(httpd_req_t* req){
         ESP_LOGW(TAG, "404 Not Found: %s. Redirecionando para /", req->uri);
         httpd_resp_set_status(req, "302 Found");
@@ -285,7 +274,6 @@ namespace WebManager {
         httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
-    // --- Handler para a raiz "/" (serve index.html) ---
     static esp_err_t root_handler(httpd_req_t* req){
         const Page* page = StorageManager::getPage("index.html");
         if(!page){ESP_LOGW(TAG,"index.html não encontrado");httpd_resp_send_404(req);return ESP_OK;}
@@ -294,7 +282,6 @@ namespace WebManager {
         ESP_LOGI(TAG, "Servido: / (index.html) (%zu bytes)", page->size);
         return ESP_OK;
     }
-    // --- Handler do health da Central ---
     static esp_err_t health_get_handler(httpd_req_t *req)
     {
         const char *resp = "OK";
@@ -304,7 +291,6 @@ namespace WebManager {
         ESP_LOGI(TAG, "GET /health -> OK");
         return err;
     }
-    // --- Registrador de handlers ---
     static void registerUriHandler(const char* description, http_method method, esp_err_t (*handler)(httpd_req_t *r)) {
         if(uri_count>=40){ESP_LOGE(TAG,"Número máximo de URIs atingido");return;}
         httpd_uri_t* uri = &uri_handlers[uri_count++];
@@ -316,7 +302,6 @@ namespace WebManager {
         if (ret == ESP_OK) {ESP_LOGI(TAG, "✓ URI '%s' registrada com sucesso", description);}
         else {ESP_LOGE(TAG, "✗ Falha ao registrar URI '%s': %s", description, esp_err_to_name(ret));}
     }
-    // --- Inicializa servidor HTTPS ---
     static void startServer() {
         if (server) { ESP_LOGW(TAG, "Servidor já em execução"); return; }
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -330,7 +315,6 @@ namespace WebManager {
         config.stack_size = 8192; 
         if(httpd_start(&server,&config)!=ESP_OK){ESP_LOGE(TAG,"Falha ao iniciar servidor HTTP");return;}
         else{ESP_LOGI(TAG, "Servidor HTTP executando");}
-        // 1. Rotas estáticas principais (HTML/JSON/CSS/JS/IMG)
         registerUriHandler("/",HTTP_GET,root_handler);
         registerUriHandler("/teste.html",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/index.html",HTTP_GET,serve_static_file_handler);
@@ -342,19 +326,15 @@ namespace WebManager {
         registerUriHandler("/js/*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/img/*",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/favicon.ico",HTTP_GET,serve_static_file_handler);
-        // 2. Captive Portal
         registerUriHandler("/generate_204",HTTP_GET,redirect_to_root_handler);
         registerUriHandler("/hotspot-detect.html",HTTP_GET,redirect_to_root_handler);
         registerUriHandler("/ncsi.txt",HTTP_GET,redirect_to_root_handler);
-        // 3. Rotas de configuração e controle da central
         registerUriHandler("/GET/login",HTTP_POST,login_auth_handler);
         registerUriHandler("/health",HTTP_GET,health_get_handler);
         registerUriHandler("/encerrar/*",HTTP_POST,encerrar_handler);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, error_404_redirect_handler);
-        // 4. GETINFO perdido
         registerUriHandler("/GETINFO",HTTP_GET,getinfo_handler);
         registerUriHandler("/GETINFO",HTTP_POST,getinfo_handler);
-        // 5. Rotas ha
         registerUriHandler("/description.xml",HTTP_GET,serve_static_file_handler);
         registerUriHandler("/api",HTTP_POST,create_user_handler);
         std::string username = "user_" + std::string(StorageManager::id_cfg->id);
@@ -363,8 +343,6 @@ namespace WebManager {
         registerUriHandler(uri_lights.c_str(),HTTP_GET,list_lights_handler);
         registerUriHandler(uri_light_id.c_str(),HTTP_GET,get_light_handler);
         registerUriHandler(uri_light_id.c_str(),HTTP_PUT,set_light_handler);
-
-        // ESP_LOGI(TAG, "HTTP server ativo (porta %d)", config.server_port);
     }
     static void onNetworkEvent(void*, esp_event_base_t, int32_t id, void*) {
         if (static_cast<EventId>(id)==EventId::NET_IFOK) {

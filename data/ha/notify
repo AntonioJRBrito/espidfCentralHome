@@ -6,3 +6,4 @@ NT: upnp:rootdevice
 NTS: ssdp:alive
 SERVER: Linux/3.14 UPnP/1.0 IpBridge/1.24
 USN:$ID$::upnp:rootdevice
+MAN: TRUEIACTR
