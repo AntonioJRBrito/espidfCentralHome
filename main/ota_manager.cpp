@@ -6,7 +6,7 @@ namespace OtaManager {
     #define OTA_CHUNK_SIZE 102400
     #define OTA_TIMEOUT_MS 90000
     #define OTA_BUFFER_SIZE 10240
-    std::string frmVersion="sendFrmAtual(Versão Atual do Firmware: v3_0_000)";
+    std::string frmVersion="sendFrmAtual(Versão Atual do Firmware: v0_0_000)";
     struct OtaTaskParams {std::string filename;int client_fd;
 };
     static void ota_download_task(void* pvParameters) {
