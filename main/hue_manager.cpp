@@ -90,6 +90,17 @@ namespace HueManager {
                             else{ESP_LOGW(TAG,"Resposta:\r\n%s",msearch->data);}
                         }
                     }
+                    else if(strstr(buffer,"M-SEARCH")&&strstr(buffer,"ssdp:all")&&(strstr(buffer,"TRUEIADSP"))){
+                        vTaskDelay(pdMS_TO_TICKS(esp_random() % 100));
+                        const Page* msearch = StorageManager::getPage("msearch");
+                        if (msearch && msearch->data) {
+                            ESP_LOGW(TAG,"M-SEARCH de %s:%d",inet_ntoa(src_addr.sin_addr),ntohs(src_addr.sin_port));
+                            ESP_LOGW(TAG,"buffer:\r\n%s",buffer);
+                            int ret = sendto(listener_sock,msearch->data,msearch->size,0,(struct sockaddr*)&src_addr,src_addr_len);
+                            if (ret < 0) {ESP_LOGE(TAG,"Erro ao enviar resposta M-SEARCH TRUEIACTR");}
+                            else{ESP_LOGW(TAG,"Resposta:\r\n%s",msearch->data);}
+                        }
+                    }
                 }
             }
         }
