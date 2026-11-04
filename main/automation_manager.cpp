@@ -41,7 +41,7 @@ namespace AutomationManager {
         // Automação
         std::string sensor_id_str(params->sensor_id);
         const std::vector<DeviceAction>* actions = StorageManager::getAutomationBySensor(sensor_id_str);
-        if(!actions){ESP_LOGW(TAG,"Nenhuma automação encontrada para sensor:%s inform:%u",params->sensor_id,params->inform);free(params);vTaskDelete(NULL);return;}
+        if(!actions){ESP_LOGI(TAG,"Nenhuma automação encontrada para sensor:%s inform:%u",params->sensor_id,params->inform);free(params);vTaskDelete(NULL);return;}
         for (const auto& action : *actions) {executeAction(action.device_id,action.action,params->inform);}
         free(params);
         vTaskDelete(NULL);
@@ -54,7 +54,7 @@ namespace AutomationManager {
         EventBus::post(EventDomain::NETWORK, EventId::NET_RTCSCHREQUEST);
     }
     static uint32_t evaluateSchedule(CurrentTime* ct) {
-        if(!ct||!StorageManager::schedule_json_psram){ESP_LOGW(TAG,"Agenda não carregada ou ct nulo");return 0;}
+        if(!ct||!StorageManager::schedule_json_psram){ESP_LOGI(TAG,"Agenda não carregada ou ct nulo");return 0;}
         int cur_dow = ct->dayOfWeek;
         int cur_min = ct->hour * 60 + ct->minute;
         int cur_sec = ct->second;
@@ -115,7 +115,7 @@ namespace AutomationManager {
                 esp_timer_start_once(schedule_timer,(uint64_t)seconds_until_next*1000000ULL);
                 ESP_LOGW(TAG,"Starting timer: seconds=%u microseconds=%llu",seconds_until_next,(uint64_t)seconds_until_next * 1000000ULL);
             }
-        }else{ESP_LOGW(TAG,"Nenhum agendamento válido encontrado");}
+        }else{ESP_LOGI(TAG,"Nenhum agendamento válido encontrado");}
         free(ct);
         vTaskDelete(NULL);
     }
